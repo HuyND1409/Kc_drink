@@ -32,7 +32,17 @@
       <a-menu-item key="6" @click="router.push('/voucher')">
         Voucher
       </a-menu-item>
-
+      <a-sub-menu key="sub-kho">
+        <template #title>
+          🧪 Kho & Nguyên liệu
+        </template>
+        <a-menu-item key="7" @click="router.push('/nguyen-lieu')">
+          Quản lý nguyên liệu
+        </a-menu-item>
+        <a-menu-item key="8" @click="router.push('/topping')">
+          Quản lý topping
+        </a-menu-item>
+      </a-sub-menu>
     </a-menu>
 
   </a-layout-sider>

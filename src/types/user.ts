@@ -5,4 +5,5 @@ export interface User {
     role: string;
     tenNguoiDung: string | null;
     diemTichLuy?: number;
+    idNhanVien?: number;
 }

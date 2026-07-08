@@ -15,8 +15,11 @@ import ShopView from "@/modules/khach-hang/views/ShopView.vue";
 import DashboardView from "@/modules/dashboard/views/DashboardView.vue";
 import NhanVienListView from "@/modules/nhan-vien/views/NhanVienListView.vue";
 import KhachHangListView from "@/modules/khach-hang/views/KhachHangListView.vue";
-
 import VoucherListView from "@/modules/voucher/views/VoucherListView.vue";
+// 👇 THÊM IMPORT MODULE NGUYÊN LIỆU Ở ĐÂY 👇
+import NguyenLieuListView from "@/modules/nguyen-lieu/views/NguyenLieuListView.vue";
+// 👇 THÊM IMPORT MODULE TOPPING Ở ĐÂY 👇
+import ToppingListView from "@/modules/topping/views/ToppingListView.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -46,6 +49,10 @@ const router = createRouter({
         { path: "nhan-vien", component: NhanVienListView },
         { path: "khach-hang", component: KhachHangListView },
         { path: "voucher", component: VoucherListView },
+        // 👇 THÊM ROUTE NGUYÊN LIỆU VÀO TRONG APPLAYOUT 👇
+        { path: "nguyen-lieu", component: NguyenLieuListView },
+        // 👇 THÊM ROUTE TOPPING VÀO TRONG APPLAYOUT 👇
+        { path: "topping", component: ToppingListView },
       ],
     },
   ],

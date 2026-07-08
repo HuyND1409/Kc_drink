@@ -133,7 +133,7 @@ watch(
 
         // Đã map đúng tên biến từ Database nhả lên
         form.loaiVoucher = props.editData.loaiVoucher || "PERCENT";
-        form.giaTriGiam = props.editData.giaTriGiam;
+        form.giaTriGiam = props.editData.giaTriGiam ?? null;
 
         form.dieuKien = props.editData.dieuKien;
         form.soLuong = props.editData.soLuong;
