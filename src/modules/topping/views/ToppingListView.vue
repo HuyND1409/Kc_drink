@@ -29,7 +29,7 @@
       <div style="display: flex; gap: 8px; align-items: center;">
 
         <!-- NÚT IMPORT EXCEL -->
-        <a-button v-if="userRole === 'ADMIN'" :loading="loadingImport" size="large"
+        <a-button v-if="isAdmin" :loading="loadingImport" size="large"
           style="background-color: #217346; color: #fff; border-color: #217346;" @click="triggerFileInput">
           <template #icon>
             <FileExcelOutlined />
@@ -41,7 +41,7 @@
         <input ref="fileInputRef" type="file" accept=".xlsx, .xls" style="display: none" @change="handleFileUpload" />
 
         <!-- NÚT THÊM TOPPING -->
-        <a-button v-if="userRole === 'ADMIN'" type="primary" size="large" @click="onAdd">
+        <a-button v-if="isAdmin" type="primary" size="large" @click="onAdd">
           + Thêm Topping
         </a-button>
 
@@ -69,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, computed } from "vue";
 import { message } from "ant-design-vue";
 import type { AxiosError } from "axios";
 import { FileExcelOutlined } from "@ant-design/icons-vue";
@@ -94,7 +94,7 @@ import { useAuthStore } from "@/modules/auth/store/authStore";
 // State
 // ============================================================
 const authStore = useAuthStore();
-const userRole = ref<string>('');
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 const dsTopping = ref<Topping[]>([]);
 const loading = ref(false);
 const openModal = ref(false);
@@ -287,13 +287,6 @@ const resetFilter = () => {
 // Init
 // ============================================================
 onMounted(() => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      userRole.value = user.role;
-    } catch { }
-  }
   loadData();
 });
 </script>

@@ -44,7 +44,7 @@
           </a-button>
 
           <!-- Nút 3 chấm xổ xuống menu (Chỉ ADMIN mới thấy) -->
-          <a-dropdown v-if="userRole === 'ADMIN'" :trigger="['click']" placement="bottomRight">
+          <a-dropdown v-if="isAdmin" :trigger="['click']" placement="bottomRight">
             <a-button size="small" style="border-radius: 6px; padding: 0 8px;" @click.stop>
               <MoreOutlined />
             </a-button>
@@ -91,19 +91,11 @@ defineEmits<{
   (e: "unlock", id: number): void;
 }>();
 
-import { ref, onMounted } from 'vue';
+import { computed } from 'vue';
+import { useAuthStore } from "@/modules/auth/store/authStore";
 
-const userRole = ref<string>('');
-
-onMounted(() => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      userRole.value = user.role;
-    } catch { }
-  }
-});
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 
 const columns = [
   {

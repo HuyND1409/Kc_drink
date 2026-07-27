@@ -7,7 +7,7 @@
         <input ref="fileInputRef" type="file" accept=".xlsx, .xls" style="display: none" @change="handleFileUpload" />
 
         <!-- Nút Nhập kho thủ công cũ -->
-        <a-button v-if="userRole === 'ADMIN'" type="primary" @click="openNhapKho = true">
+        <a-button v-if="isAdmin" type="primary" @click="openNhapKho = true">
           <template #icon>
             <PlusOutlined />
           </template>
@@ -140,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from "vue";
+import { ref, reactive, watch, computed } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 import type { AxiosError } from "axios";
@@ -179,17 +179,7 @@ const authStore = useAuthStore();
 // ============================================================
 // State: Quyền người dùng
 // ============================================================
-const userRole = ref<string>('');
-
-onMounted(() => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      userRole.value = user.role;
-    } catch { }
-  }
-});
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 
 // ============================================================
 // State: Danh sách lô
@@ -230,16 +220,21 @@ const loadingConfirm = ref(false);
 // ============================================================
 // Columns (Đã bổ sung cột Trạng thái & Thao tác)
 // ============================================================
-const loColumns = [
-  { title: "#", dataIndex: "idLoTopping", width: 60, align: "center" as const },
-  { title: "Mã lô", dataIndex: "maLo", width: 110, align: "center" as const },
-  { title: "Số lượng tồn", key: "soLuongTon", width: 140, align: "center" as const },
-  { title: "Hạn sử dụng (FEFO)", key: "hanSuDung", align: "center" as const },
-  { title: "Ngày nhập", key: "ngayNhap", width: 150, align: "center" as const },
-  { title: "Người nhập", dataIndex: "tenNhanVien", width: 130 },
-  { title: "Trạng thái", key: "trangThai", align: "center" as const, width: 110 },
-  { title: "Thao tác", key: "action", align: "center" as const, width: 110 },
-];
+const loColumns = computed(() => {
+  const baseCols = [
+    { title: "#", dataIndex: "idLoTopping", width: 60, align: "center" as const },
+    { title: "Mã lô", dataIndex: "maLo", width: 110, align: "center" as const },
+    { title: "Số lượng tồn", key: "soLuongTon", width: 140, align: "center" as const },
+    { title: "Hạn sử dụng (FEFO)", key: "hanSuDung", align: "center" as const },
+    { title: "Ngày nhập", key: "ngayNhap", width: 150, align: "center" as const },
+    { title: "Người nhập", dataIndex: "tenNhanVien", width: 130 },
+    { title: "Trạng thái", key: "trangThai", align: "center" as const, width: 110 },
+  ];
+  if (isAdmin.value) {
+    baseCols.push({ title: "Thao tác", key: "action", align: "center" as const, width: 110 });
+  }
+  return baseCols;
+});
 
 // ============================================================
 // Validation Rules
