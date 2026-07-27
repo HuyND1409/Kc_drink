@@ -1,14 +1,6 @@
 <template>
-  <a-table
-    :columns="columns"
-    :data-source="data"
-    :loading="loading"
-    :pagination="false"
-    rowKey="idNguyenLieu"
-    bordered
-    :row-class-name="() => 'clickable-row'"
-    @row-click="(record: NguyenLieu) => $emit('viewLo', record)"
-  >
+  <a-table :columns="columns" :data-source="data" :loading="loading" :pagination="false" rowKey="idNguyenLieu" bordered
+    :row-class-name="() => 'clickable-row'" @row-click="(record: NguyenLieu) => $emit('viewLo', record)">
     <template #bodyCell="{ column, record }">
 
       <!-- Đơn vị tính -->
@@ -43,35 +35,28 @@
       <template v-if="column.key === 'action'">
         <div class="action-cell">
           <a-tooltip title="Xem lô hàng">
-            <a-button
-              type="primary"
-              ghost
-              size="small"
-              @click.stop="$emit('viewLo', record)"
-            >
-              <template #icon><DatabaseOutlined /></template>
+            <a-button type="primary" ghost size="small" @click.stop="$emit('viewLo', record)">
+              <template #icon>
+                <DatabaseOutlined />
+              </template>
               Xem kho
             </a-button>
           </a-tooltip>
 
-          <a-tooltip v-if="userRole === 'ADMIN'" :title="record.trangThai === 1 ? 'Khóa nguyên liệu' : 'Mở khóa nguyên liệu'">
-            <a-button
-              v-if="record.trangThai === 1"
-              danger
-              size="small"
-              @click.stop="$emit('lock', record.idNguyenLieu)"
-            >
-              <template #icon><LockOutlined /></template>
+          <a-tooltip v-if="userRole === 'ADMIN'"
+            :title="record.trangThai === 1 ? 'Khóa nguyên liệu' : 'Mở khóa nguyên liệu'">
+            <a-button v-if="record.trangThai === 1" danger size="small"
+              @click.stop="$emit('lock', record.idNguyenLieu)">
+              <template #icon>
+                <LockOutlined />
+              </template>
               Khóa
             </a-button>
-            <a-button
-              v-else
-              type="default"
-              size="small"
-              style="color: #52c41a; border-color: #52c41a;"
-              @click.stop="$emit('unlock', record.idNguyenLieu)"
-            >
-              <template #icon><UnlockOutlined /></template>
+            <a-button v-else type="default" size="small" style="color: #52c41a; border-color: #52c41a;"
+              @click.stop="$emit('unlock', record.idNguyenLieu)">
+              <template #icon>
+                <UnlockOutlined />
+              </template>
               Mở khóa
             </a-button>
           </a-tooltip>
@@ -107,12 +92,18 @@ onMounted(() => {
     try {
       const user = JSON.parse(userStr);
       userRole.value = user.role;
-    } catch (e) {}
+    } catch { }
   }
 });
 
 const columns = [
-  { title: "#", dataIndex: "idNguyenLieu", width: 70, align: "center" },
+  {
+    title: "Mã NL",
+    dataIndex: "idNguyenLieu",
+    width: 80,
+    align: "center" as const,
+    customRender: ({ text }: { text: number }) => `NL0${String(text).padStart(2, '0')}`
+  },
   { title: "Tên nguyên liệu", dataIndex: "tenNguyenLieu" },
   { title: "Đơn vị tính", key: "donViTinh", width: 150, align: "center" },
   { title: "Tổng tồn kho", key: "tongTonKho", width: 160, align: "center" },

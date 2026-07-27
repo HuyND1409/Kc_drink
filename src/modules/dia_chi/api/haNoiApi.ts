@@ -1,49 +1,43 @@
-import axios from "axios";
+import axios from "@/api/axios";
 
-const api = axios.create({
-
-    baseURL: "https://provinces.open-api.vn/api"
-
-});
-
-export interface District{
-
-    code:number;
-
-    name:string;
-
+export interface District {
+  code: number;
+  name: string;
 }
 
-export interface Ward{
-
-    code:number;
-
-    name:string;
-
+export interface Ward {
+  code: string;
+  name: string;
 }
 
-export const getHaNoiDistricts=async()=>{
+interface GhnDistrictItem {
+  DistrictID: number;
+  DistrictName: string;
+}
 
-    const res=await api.get("/p/1?depth=2");
+interface GhnWardItem {
+  WardCode: string;
+  WardName: string;
+}
 
-    return res.data.districts;
+export const getHaNoiDistricts = async (): Promise<District[]> => {
+  const res = await axios.get("/van-chuyen/districts");
 
+  return res.data.data.data.map((item: GhnDistrictItem) => ({
+    code: item.DistrictID,
+    name: item.DistrictName,
+  }));
 };
 
-export const getWards=async(
+export const getWards = async (
+  districtId: number,
+): Promise<Ward[]> => {
+  const res = await axios.get(
+    `/van-chuyen/wards/${districtId}`,
+  );
 
-    districtCode:number
-
-)=>{
-
-    const res=
-
-    await api.get(
-
-        `/d/${districtCode}?depth=2`
-
-    );
-
-    return res.data.wards;
-
+  return res.data.data.data.map((item: GhnWardItem) => ({
+    code: item.WardCode,
+    name: item.WardName,
+  }));
 };

@@ -31,7 +31,7 @@
         <a-col :span="12">
 
           <a-form-item label="Quận / Huyện">
-            <a-select v-model:value="form.district" placeholder="Chọn quận" @change="changeDistrict">
+            <a-select v-model:value="form.districtId" placeholder="Chọn quận" @change="changeDistrict">
               <a-select-option v-for="item in districts" :key="item.code" :value="item.code">
                 {{ item.name }}
               </a-select-option>
@@ -43,7 +43,7 @@
         <a-col :span="12">
 
           <a-form-item label="Phường / Xã">
-            <a-select v-model:value="form.ward" placeholder="Chọn phường">
+            <a-select v-model:value="form.wardCode" placeholder="Chọn phường">
               <a-select-option v-for="item in wards" :key="item.code" :value="item.code">
                 {{ item.name }}
               </a-select-option>
@@ -55,7 +55,7 @@
       </a-row>
 
       <a-form-item label="Số nhà / Địa chỉ chi tiết">
-        <a-input v-model:value="form.detail" placeholder="Ví dụ: Số 12 ngõ 5 Trần Phú" />
+        <a-input v-model:value="form.diaChi" placeholder="Ví dụ: Số 12 ngõ 5 Trần Phú" />
       </a-form-item>
 
       <a-form-item>
@@ -113,9 +113,18 @@ const loading = ref(false);
 
 const formRef = ref<FormInstance>();
 
-const districts = ref<any[]>([]);
+interface DistrictOption {
+  code: number;
+  name: string;
+}
 
-const wards = ref<any[]>([]);
+interface WardOption {
+  code: string;
+  name: string;
+}
+
+const districts = ref<DistrictOption[]>([]);
+const wards = ref<WardOption[]>([]);
 
 const form = reactive({
 
@@ -125,13 +134,21 @@ const form = reactive({
 
   sdtNguoiNhan: "",
 
-  district: undefined as number | undefined,
-
-  ward: undefined as number | undefined,
-
-  detail: "",
+  diaChi: "",
 
   macDinh: false,
+
+  provinceId: 201,
+
+  districtId: undefined as number | undefined,
+
+  wardCode: undefined as string | undefined,
+
+  tenTinhThanh: "Hà Nội",
+
+  tenQuanHuyen: "",
+
+  tenPhuongXa: "",
 
 });
 onMounted(async () => {
@@ -171,7 +188,7 @@ watch(
         props.model.macDinh;
 
       // Khi sửa chỉ hiển thị lại địa chỉ cũ
-      form.detail =
+      form.diaChi =
         props.model.diaChi;
 
     } else {
@@ -183,11 +200,11 @@ watch(
 
       form.sdtNguoiNhan = "";
 
-      form.detail = "";
+      form.diaChi = "";
 
-      form.district = undefined;
+      form.districtId = undefined;
 
-      form.ward = undefined;
+      form.wardCode = undefined;
 
       form.macDinh = false;
 
@@ -211,30 +228,37 @@ const submit = async () => {
 
     const districtName =
       districts.value.find(
-        x => x.code === form.district
+        x => x.code === form.districtId
       )?.name || "";
 
     const wardName =
       wards.value.find(
-        x => x.code === form.ward
+        x => x.code === form.wardCode
       )?.name || "";
 
     const request: DiaChiRequest = {
 
-      idKhachHang:
-        form.idKhachHang,
+      idKhachHang: form.idKhachHang,
 
-      tenNguoiNhan:
-        form.tenNguoiNhan,
+      tenNguoiNhan: form.tenNguoiNhan,
 
-      sdtNguoiNhan:
-        form.sdtNguoiNhan,
+      sdtNguoiNhan: form.sdtNguoiNhan,
 
-      diaChi:
-        `${form.detail}, ${wardName}, ${districtName}, Hà Nội`,
+      diaChi: form.diaChi,
 
-      macDinh:
-        form.macDinh,
+      macDinh: form.macDinh,
+
+      provinceId: 201,
+
+      districtId: form.districtId!,
+
+      wardCode: form.wardCode!,
+
+      tenTinhThanh: "Hà Nội",
+
+      tenQuanHuyen: districtName,
+
+      tenPhuongXa: wardName,
 
     };
 

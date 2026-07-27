@@ -4,15 +4,15 @@ import { me } from "@/api/auth";
 import type { User } from "@/types/user";
 export const useAuthStore = defineStore("auth", () => {
     const token = ref<string | null>(
-        localStorage.getItem("token")
+        sessionStorage.getItem("token")
     );
 const user = ref<User | null>(
-    JSON.parse(localStorage.getItem("user") || "null")
+    JSON.parse(sessionStorage.getItem("user") || "null")
 );
     const isLogin = computed(() => token.value !== null);
     function setToken(jwt: string) {
         token.value = jwt;
-        localStorage.setItem("token", jwt);
+        sessionStorage.setItem("token", jwt);
 
     }
 
@@ -20,7 +20,7 @@ const user = ref<User | null>(
 
         user.value = data;
 
-        localStorage.setItem(
+        sessionStorage.setItem(
             "user",
             JSON.stringify(data)
         );
@@ -39,8 +39,8 @@ const user = ref<User | null>(
 
         user.value = null;
 
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        sessionStorage.removeItem("token");
+        sessionStorage.removeItem("user");
 
     }
 

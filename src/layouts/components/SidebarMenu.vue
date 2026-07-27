@@ -32,6 +32,9 @@
       <a-menu-item key="6" @click="router.push('/voucher')">
         Voucher
       </a-menu-item>
+      <a-menu-item key="7" @click="router.push('/ghn-test')">
+         GHN test
+      </a-menu-item>
       <a-sub-menu key="sub-kho">
         <template #title>
           🧪 Kho & Nguyên liệu

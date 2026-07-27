@@ -1,18 +1,24 @@
 <template>
-  <a-drawer :open="open" :title="`📦 Lô hàng – ${topping?.tenTopping ?? ''}`" width="760" @close="$emit('close')">
-    <!-- Header Drawer: Nút Nhập kho -->
+  <a-drawer :open="open" :title="`📦 Lô hàng – ${topping?.tenTopping ?? ''}`" width="850" @close="$emit('close')">
+    <!-- Header Drawer: Nút Import Excel & Nhập kho -->
     <template #extra>
-      <a-button v-if="userRole === 'ADMIN'" type="primary" @click="openNhapKho = true">
-        <template #icon>
-          <PlusOutlined />
-        </template>
-        Nhập kho
-      </a-button>
+      <div style="display: flex; gap: 8px;">
+        <!-- Thẻ Input File ẩn -->
+        <input ref="fileInputRef" type="file" accept=".xlsx, .xls" style="display: none" @change="handleFileUpload" />
+
+        <!-- Nút Nhập kho thủ công cũ -->
+        <a-button v-if="userRole === 'ADMIN'" type="primary" @click="openNhapKho = true">
+          <template #icon>
+            <PlusOutlined />
+          </template>
+          Nhập kho
+        </a-button>
+      </div>
     </template>
 
     <!-- Bảng lô hàng (FEFO) -->
-    <a-table :columns="loColumns" :data-source="dsLo" :loading="loadingLo" :pagination="false" rowKey="idLoTopping" bordered
-      size="middle">
+    <a-table :columns="loColumns" :data-source="dsLo" :loading="loadingLo" :pagination="false" rowKey="idLoTopping"
+      bordered size="middle">
       <template #bodyCell="{ column, record }">
 
         <!-- Số lượng tồn -->
@@ -43,6 +49,35 @@
           <span style="color: #595959; font-size: 13px">
             {{ formatDateTime(record.ngayNhap) }}
           </span>
+        </template>
+
+        <!-- ➕ Trạng thái Lô Topping -->
+        <template v-if="column.key === 'trangThai'">
+          <a-tag :color="record.trangThai === 1 || record.trangThai === null ? 'success' : 'error'">
+            {{ record.trangThai === 1 || record.trangThai === null ? 'Đang Bán' : 'Đã khóa' }}
+          </a-tag>
+        </template>
+
+        <!-- ➕ Thao tác Khóa / Mở khóa -->
+        <template v-if="column.key === 'action'">
+          <div style="display: flex; justify-content: center; align-items: center;">
+            <a-button v-if="record.trangThai === 1 || record.trangThai === null" type="primary" danger ghost
+              size="small" style="border-radius: 6px; font-size: 12px;" @click="openLockConfirm(record)">
+              <template #icon>
+                <LockOutlined />
+              </template>
+              Khóa
+            </a-button>
+
+            <a-button v-else size="small"
+              style="color: #52c41a; border-color: #b7eb8f; background: #f6ffed; border-radius: 6px; font-size: 12px;"
+              @click="openUnlockConfirm(record)">
+              <template #icon>
+                <UnlockOutlined />
+              </template>
+              Mở khóa
+            </a-button>
+          </div>
         </template>
 
       </template>
@@ -79,19 +114,50 @@
 
       </a-form>
     </a-modal>
+
+    <!-- ➕ Modal Xác nhận Khóa / Mở khóa (Căn giữa màn hình, hiển thị đẹp chuẩn UI) -->
+    <a-modal v-model:open="openConfirm"
+      :title="confirmType === 'lock' ? `Xác nhận khóa lô [${selectedLo?.maLo}]` : `Mở khóa lô [${selectedLo?.maLo}]`"
+      :ok-text="confirmType === 'lock' ? 'Khóa lô' : 'Mở khóa'" :ok-type="confirmType === 'lock' ? 'danger' : 'primary'"
+      cancel-text="Hủy" :confirm-loading="loadingConfirm" centered width="440px" @ok="handleConfirmSubmit">
+      <div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 0;">
+        <ExclamationCircleFilled
+          :style="{ fontSize: '22px', color: confirmType === 'lock' ? '#ff4d4f' : '#52c41a', marginTop: '2px' }" />
+        <div>
+          <p style="margin: 0; font-size: 14px; font-weight: 600; color: #262626;">
+            {{ confirmType === 'lock' ? 'Tạm dừng tính tồn kho lô này?' : 'Mở lại trạng thái hoạt động?' }}
+          </p>
+          <p style="margin: 4px 0 0 0; font-size: 13px; color: #595959;">
+            {{ confirmType === 'lock'
+              ? `Số lượng tồn (${selectedLo?.soLuongTon ?? 0} phần) sẽ tạm thời bị trừ khỏi Tổng tồn kho.`
+              : `Số lượng tồn (${selectedLo?.soLuongTon ?? 0} phần) sẽ được cộng trả lại vào Tổng tồn kho.`
+            }}
+          </p>
+        </div>
+      </div>
+    </a-modal>
   </a-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from "vue";
+import { ref, reactive, watch, onMounted } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 import type { AxiosError } from "axios";
 import dayjs, { type Dayjs } from "dayjs";
-import { PlusOutlined } from "@ant-design/icons-vue";
-
+import {
+  PlusOutlined,
+  LockOutlined,
+  UnlockOutlined,
+  ExclamationCircleFilled,
+} from "@ant-design/icons-vue";
 import type { Topping, LoTopping } from "../types/topping";
-import { getLoTopping, createLoTopping } from "../api/toppingApi";
+import {
+  getLoTopping,
+  createLoTopping,
+  lockLoToppingApi,
+  unlockLoToppingApi,
+} from "../api/toppingApi";
 import { useAuthStore } from "@/modules/auth/store/authStore";
 
 // ============================================================
@@ -105,6 +171,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "close"): void;
   (e: "success"): void;
+  (e: "refreshMainList"): void;
 }>();
 
 const authStore = useAuthStore();
@@ -112,7 +179,6 @@ const authStore = useAuthStore();
 // ============================================================
 // State: Quyền người dùng
 // ============================================================
-import { onMounted } from 'vue';
 const userRole = ref<string>('');
 
 onMounted(() => {
@@ -121,7 +187,7 @@ onMounted(() => {
     try {
       const user = JSON.parse(userStr);
       userRole.value = user.role;
-    } catch (e) {}
+    } catch { }
   }
 });
 
@@ -154,15 +220,25 @@ const nhapKhoForm = reactive<{
 });
 
 // ============================================================
-// Columns
+// State: Modal xác nhận Khóa / Mở khóa
+// ============================================================
+const openConfirm = ref(false);
+const confirmType = ref<'lock' | 'unlock'>('lock');
+const selectedLo = ref<LoTopping | null>(null);
+const loadingConfirm = ref(false);
+
+// ============================================================
+// Columns (Đã bổ sung cột Trạng thái & Thao tác)
 // ============================================================
 const loColumns = [
-  { title: "#", dataIndex: "idLoTopping", width: 70, align: "center" as const },
-  { title: "Mã lô", dataIndex: "maLo", width: 120, align: "center" as const },
-  { title: "Số lượng tồn", key: "soLuongTon", width: 160, align: "center" as const },
+  { title: "#", dataIndex: "idLoTopping", width: 60, align: "center" as const },
+  { title: "Mã lô", dataIndex: "maLo", width: 110, align: "center" as const },
+  { title: "Số lượng tồn", key: "soLuongTon", width: 140, align: "center" as const },
   { title: "Hạn sử dụng (FEFO)", key: "hanSuDung", align: "center" as const },
-  { title: "Ngày nhập", key: "ngayNhap", width: 180, align: "center" as const },
-  { title: "Người nhập", dataIndex: "tenNhanVien", width: 150 },
+  { title: "Ngày nhập", key: "ngayNhap", width: 150, align: "center" as const },
+  { title: "Người nhập", dataIndex: "tenNhanVien", width: 130 },
+  { title: "Trạng thái", key: "trangThai", align: "center" as const, width: 110 },
+  { title: "Thao tác", key: "action", align: "center" as const, width: 110 },
 ];
 
 // ============================================================
@@ -189,7 +265,6 @@ const nhapKhoRules: Record<string, Rule[]> = {
   ],
 };
 
-// Không cho chọn ngày trong quá khứ
 const disabledPastDate = (current: Dayjs) => {
   return current && current.isBefore(dayjs().startOf("day"));
 };
@@ -215,12 +290,6 @@ const isExpiringSoon = (dateStr: string) => {
   return diffDays >= 0 && diffDays <= 10;
 };
 
-/**
- * Trả về màu tag phù hợp theo yêu cầu:
- * - Còn hạn trên 30 ngày → success (xanh lá)
- * - Sắp hết hạn (dưới 10 ngày) → warning (cam)
- * - Hết hạn → error (đỏ)
- */
 const getExpiryColor = (dateStr: string) => {
   if (isExpired(dateStr)) return "error";
   const diffDays = dayjs(dateStr).diff(dayjs(), "day");
@@ -254,6 +323,61 @@ const onPageChange = (page: number, size: number) => {
 };
 
 // ============================================================
+// Thao tác Khóa / Mở khóa lô Topping (Giữ nguyên logic gốc)
+// ============================================================
+const handleLockLo = async (idLoTopping: number) => {
+  try {
+    await lockLoToppingApi(idLoTopping);
+    message.success('Đã khóa lô topping thành công!');
+    await loadLo();
+    emit('success');
+    emit('refreshMainList');
+  } catch (error: any) {
+    message.error(error.response?.data?.message || 'Có lỗi xảy ra khi khóa lô topping!');
+  }
+};
+
+const handleUnlockLo = async (idLoTopping: number) => {
+  try {
+    await unlockLoToppingApi(idLoTopping);
+    message.success('Đã mở khóa lô topping thành công!');
+    await loadLo();
+    emit('success');
+    emit('refreshMainList');
+  } catch (error: any) {
+    message.error(error.response?.data?.message || 'Có lỗi xảy ra khi mở khóa lô topping!');
+  }
+};
+
+// ➕ Hàm kích hoạt bật Modal xác nhận
+const openLockConfirm = (record: LoTopping) => {
+  selectedLo.value = record;
+  confirmType.value = 'lock';
+  openConfirm.value = true;
+};
+
+const openUnlockConfirm = (record: LoTopping) => {
+  selectedLo.value = record;
+  confirmType.value = 'unlock';
+  openConfirm.value = true;
+};
+
+// ➕ Hàm xử lý khi bấm nút xác nhận trên Modal
+const handleConfirmSubmit = async () => {
+  if (!selectedLo.value) return;
+  loadingConfirm.value = true;
+  try {
+    if (confirmType.value === 'lock') {
+      await handleLockLo(selectedLo.value.idLoTopping);
+    } else {
+      await handleUnlockLo(selectedLo.value.idLoTopping);
+    }
+    openConfirm.value = false;
+  } finally {
+    loadingConfirm.value = false;
+  }
+};
+// ============================================================
 // Nhập kho
 // ============================================================
 const closeNhapKho = () => {
@@ -283,6 +407,7 @@ const handleNhapKho = async () => {
     currentPage.value = 1;
     await loadLo();
     emit("success");
+    emit("refreshMainList");
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
     if (err.response?.status === 403) {
@@ -296,7 +421,7 @@ const handleNhapKho = async () => {
 };
 
 // ============================================================
-// Watch: Khi Drawer mở (topping thay đổi) → load lô mới
+// Watch
 // ============================================================
 watch(
   () => props.open,

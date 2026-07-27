@@ -1,32 +1,16 @@
 <template>
-  <a-modal
-    :open="open"
-    title="Thêm nguyên liệu mới"
-    width="520px"
-    ok-text="Lưu"
-    cancel-text="Hủy"
-    :confirm-loading="loading"
-    @ok="handleSubmit"
-    @cancel="handleClose"
-  >
+  <a-modal :open="open" title="Thêm nguyên liệu mới" width="520px" ok-text="Lưu" cancel-text="Hủy"
+    :confirm-loading="loading" @ok="handleSubmit" @cancel="handleClose">
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
 
       <a-form-item label="Tên nguyên liệu" name="tenNguyenLieu">
-        <a-input
-          v-model:value="form.tenNguyenLieu"
-          placeholder="VD: Đường cát trắng, Sữa tươi nguyên chất..."
-        />
+        <a-input v-model:value="form.tenNguyenLieu" placeholder="VD: Đường cát trắng, Sữa tươi nguyên chất..." />
       </a-form-item>
 
       <a-row :gutter="16">
         <a-col :span="12">
           <a-form-item label="Đơn vị tính" name="donViTinh">
-            <a-select
-              v-model:value="form.donViTinh"
-              placeholder="Chọn đơn vị tính"
-              allow-clear
-              style="width: 100%"
-            >
+            <a-select v-model:value="form.donViTinh" placeholder="Chọn đơn vị tính" allow-clear style="width: 100%">
               <a-select-option value="kg">kg (kilogram)</a-select-option>
               <a-select-option value="g">g (gram)</a-select-option>
               <a-select-option value="l">l (lít)</a-select-option>
@@ -42,13 +26,8 @@
 
         <a-col :span="12">
           <a-form-item label="Ngưỡng tồn kho cảnh báo" name="nguongTonKho">
-            <a-input-number
-              v-model:value="form.nguongTonKho"
-              placeholder="VD: 100"
-              style="width: 100%"
-              :min="0"
-              :step="10"
-            />
+            <a-input-number v-model:value="form.nguongTonKho" placeholder="VD: 100" style="width: 100%" :min="0"
+              :step="10" />
           </a-form-item>
         </a-col>
       </a-row>

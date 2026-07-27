@@ -1,14 +1,6 @@
 <template>
-  <a-table
-    :columns="columns"
-    :data-source="data"
-    :loading="loading"
-    :pagination="false"
-    rowKey="idTopping"
-    bordered
-    :row-class-name="() => 'clickable-row'"
-    @row-click="(record: Topping) => $emit('viewLo', record)"
-  >
+  <a-table :columns="columns" :data-source="data" :loading="loading" :pagination="false" rowKey="idTopping" bordered
+    :row-class-name="() => 'clickable-row'" @row-click="(record: Topping) => $emit('viewLo', record)">
     <template #bodyCell="{ column, record }">
       <!-- Giá bán -->
       <template v-if="column.key === 'giaTopping'">
@@ -42,52 +34,41 @@
 
       <!-- Hành động -->
       <template v-if="column.key === 'action'">
-        <div class="action-cell">
-          <a-tooltip title="Xem lô hàng">
-            <a-button
-              type="primary"
-              ghost
-              size="small"
-              @click.stop="$emit('viewLo', record)"
-            >
-              <template #icon><DatabaseOutlined /></template>
-              Xem kho
-            </a-button>
-          </a-tooltip>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+          <!-- Nút chính: Xem kho (Tất cả người dùng đều thấy) -->
+          <a-button type="primary" ghost size="small" style="border-radius: 6px;" @click.stop="$emit('viewLo', record)">
+            <template #icon>
+              <DatabaseOutlined />
+            </template>
+            Xem kho
+          </a-button>
 
-          <a-tooltip v-if="userRole === 'ADMIN'" title="Chỉnh sửa">
-            <a-button
-              type="primary"
-              ghost
-              size="small"
-              @click.stop="$emit('edit', record)"
-            >
-              <template #icon><EditOutlined /></template>
-              Sửa
+          <!-- Nút 3 chấm xổ xuống menu (Chỉ ADMIN mới thấy) -->
+          <a-dropdown v-if="userRole === 'ADMIN'" :trigger="['click']" placement="bottomRight">
+            <a-button size="small" style="border-radius: 6px; padding: 0 8px;" @click.stop>
+              <MoreOutlined />
             </a-button>
-          </a-tooltip>
 
-          <a-tooltip v-if="userRole === 'ADMIN'" :title="record.trangThai === 1 ? 'Khóa topping' : 'Mở khóa topping'">
-            <a-button
-              v-if="record.trangThai === 1"
-              danger
-              size="small"
-              @click.stop="$emit('lock', record.idTopping)"
-            >
-              <template #icon><LockOutlined /></template>
-              Khóa
-            </a-button>
-            <a-button
-              v-else
-              type="default"
-              size="small"
-              style="color: #52c41a; border-color: #52c41a;"
-              @click.stop="$emit('unlock', record.idTopping)"
-            >
-              <template #icon><UnlockOutlined /></template>
-              Mở khóa
-            </a-button>
-          </a-tooltip>
+            <template #overlay>
+              <a-menu>
+                <!-- Nút Chỉnh sửa -->
+                <a-menu-item key="edit" @click="$emit('edit', record)">
+                  <EditOutlined style="color: #1890ff; margin-right: 6px;" />
+                  <span>Chỉnh sửa</span>
+                </a-menu-item>
+
+                <a-menu-divider />
+
+                <!-- Nút Khóa / Mở khóa -->
+                <a-menu-item key="toggle-lock" :danger="record.trangThai === 1"
+                  @click="record.trangThai === 1 ? $emit('lock', record.idTopping) : $emit('unlock', record.idTopping)">
+                  <LockOutlined v-if="record.trangThai === 1" style="margin-right: 6px;" />
+                  <UnlockOutlined v-else style="color: #52c41a; margin-right: 6px;" />
+                  <span>{{ record.trangThai === 1 ? 'Khóa topping' : 'Mở khóa' }}</span>
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
         </div>
       </template>
     </template>
@@ -120,12 +101,15 @@ onMounted(() => {
     try {
       const user = JSON.parse(userStr);
       userRole.value = user.role;
-    } catch (e) {}
+    } catch { }
   }
 });
 
 const columns = [
-  { title: "#", dataIndex: "idTopping", width: 70, align: "center" as const },
+  {
+    title: "#", dataIndex: "idTopping", width: 70, align: "center" as const,
+    customRender: ({ text }: { text: number }) => `TP0${String(text).padStart(2, '0')}`
+  },
   { title: "Tên Topping", dataIndex: "tenTopping" },
   { title: "Giá bán", key: "giaTopping", width: 160, align: "right" as const },
   { title: "Tổng tồn kho", key: "tongTonKho", width: 180, align: "center" as const },

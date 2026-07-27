@@ -207,7 +207,7 @@ onMounted(() => {
     try {
       const user = JSON.parse(userStr);
       userRole.value = user.role;
-    } catch (e) {}
+    } catch {}
   }
   loadData();
 });

@@ -50,7 +50,24 @@ export const getLoTopping = (
         params: { idTopping, page, size },
     });
 };
+// 🔒 Khóa Lô Topping
+export const lockLoToppingApi = (id: number) => {
+    return api.put(`/lo-topping/${id}/lock`);
+};
+
+// 🔓 Mở khóa Lô Topping
+export const unlockLoToppingApi = (id: number) => {
+    return api.put(`/lo-topping/${id}/unlock`);
+};
 
 export const createLoTopping = (data: LoToppingRequest) => {
     return api.post("/lo-topping", data);
+};
+// 📄 Import Excel Lô Topping
+export const importLoToppingApi = (formData: FormData) => {
+  return api.post("/lo-topping/import", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
 };

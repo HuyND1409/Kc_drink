@@ -11,21 +11,10 @@
 
       <div class="toolbar-left">
 
-        <a-input-search
-          v-model:value="keyword"
-          placeholder="Tìm theo tên topping..."
-          allow-clear
-          style="width:300px"
-          @search="onSearch"
-        />
+        <a-input-search v-model:value="keyword" placeholder="Tìm theo tên topping..." allow-clear style="width:300px"
+          @search="onSearch" />
 
-        <a-select
-          v-model:value="trangThai"
-          placeholder="Trạng thái"
-          allow-clear
-          style="width:160px"
-          @change="onSearch"
-        >
+        <a-select v-model:value="trangThai" placeholder="Trạng thái" allow-clear style="width:160px" @change="onSearch">
           <a-select-option :value="1">Hoạt động</a-select-option>
           <a-select-option :value="0">Đã khóa</a-select-option>
         </a-select>
@@ -36,49 +25,45 @@
 
       </div>
 
-      <a-button v-if="userRole === 'ADMIN'" type="primary" size="large" @click="onAdd">
-        + Thêm Topping
-      </a-button>
+      <!-- 🟢 CỤM NÚT THAO TÁC CỦA ADMIN -->
+      <div style="display: flex; gap: 8px; align-items: center;">
+
+        <!-- NÚT IMPORT EXCEL -->
+        <a-button v-if="userRole === 'ADMIN'" :loading="loadingImport" size="large"
+          style="background-color: #217346; color: #fff; border-color: #217346;" @click="triggerFileInput">
+          <template #icon>
+            <FileExcelOutlined />
+          </template>
+          Import Excel
+        </a-button>
+
+        <!-- INPUT FILE ẨN -->
+        <input ref="fileInputRef" type="file" accept=".xlsx, .xls" style="display: none" @change="handleFileUpload" />
+
+        <!-- NÚT THÊM TOPPING -->
+        <a-button v-if="userRole === 'ADMIN'" type="primary" size="large" @click="onAdd">
+          + Thêm Topping
+        </a-button>
+
+      </div>
 
     </div>
 
     <!-- Bảng danh sách topping -->
-    <ToppingTable
-      :data="dsTopping"
-      :loading="loading"
-      @viewLo="onViewLo"
-      @edit="onEdit"
-      @lock="onLock"
-      @unlock="onUnlock"
-    />
+    <ToppingTable :data="dsTopping" :loading="loading" @viewLo="onViewLo" @edit="onEdit" @lock="onLock"
+      @unlock="onUnlock" />
 
     <!-- Phân trang -->
     <div style="display:flex; justify-content:flex-end; margin-top:20px;">
-      <a-pagination
-        :current="currentPage"
-        :pageSize="pageSize"
-        :total="total"
-        show-size-changer
-        :show-total="(total: number) => `Tổng ${total} topping`"
-        @change="onPageChange"
-      />
+      <a-pagination :current="currentPage" :pageSize="pageSize" :total="total" show-size-changer
+        :show-total="(total: number) => `Tổng ${total} topping`" @change="onPageChange" />
     </div>
 
     <!-- Modal thêm/sửa topping -->
-    <ToppingForm
-      :open="openModal"
-      :editData="editing"
-      @close="handleCloseModal"
-      @save="saveTopping"
-    />
+    <ToppingForm :open="openModal" :editData="editing" @close="handleCloseModal" @save="saveTopping" />
 
     <!-- Drawer xem lô hàng & nhập kho -->
-    <LoToppingDrawer
-      :open="openDrawer"
-      :topping="selectedTopping"
-      @close="openDrawer = false"
-      @success="loadData"
-    />
+    <LoToppingDrawer :open="openDrawer" :topping="selectedTopping" @close="openDrawer = false" @success="loadData" />
 
   </a-card>
 </template>
@@ -87,6 +72,7 @@
 import { onMounted, ref } from "vue";
 import { message } from "ant-design-vue";
 import type { AxiosError } from "axios";
+import { FileExcelOutlined } from "@ant-design/icons-vue";
 
 import ToppingTable from "../components/ToppingTable.vue";
 import ToppingForm from "../components/ToppingForm.vue";
@@ -98,13 +84,16 @@ import {
   updateTopping,
   lockTopping,
   unlockTopping,
+  importLoToppingApi,
 } from "../api/toppingApi";
 
 import type { Topping, ToppingRequest } from "../types/topping";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 
 // ============================================================
 // State
 // ============================================================
+const authStore = useAuthStore();
 const userRole = ref<string>('');
 const dsTopping = ref<Topping[]>([]);
 const loading = ref(false);
@@ -122,6 +111,45 @@ const editing = ref<Topping>();
 // Drawer
 const openDrawer = ref(false);
 const selectedTopping = ref<Topping>();
+
+// State Import Excel
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const loadingImport = ref(false);
+
+// ============================================================
+// Logic Import Excel Batch
+// ============================================================
+const triggerFileInput = () => {
+  fileInputRef.value?.click();
+};
+
+const handleFileUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const idNhanVien = authStore.user?.idNhanVien ?? 1;
+  formData.append("idNhanVien", idNhanVien.toString());
+
+  loadingImport.value = true;
+  try {
+    const res = await importLoToppingApi(formData);
+    message.success(res.data?.message || "Import danh sách lô Topping thành công!");
+
+    // Reset về trang 1 và load lại danh sách Topping (cập nhật lại tổng tồn kho)
+    currentPage.value = 1;
+    await loadData();
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.message || "Có lỗi xảy ra khi import file Excel!";
+    message.error(errorMsg);
+  } finally {
+    loadingImport.value = false;
+    target.value = ""; // Reset input file
+  }
+};
 
 // ============================================================
 // Đóng / Mở Modal
@@ -264,7 +292,7 @@ onMounted(() => {
     try {
       const user = JSON.parse(userStr);
       userRole.value = user.role;
-    } catch (e) {}
+    } catch { }
   }
   loadData();
 });

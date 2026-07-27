@@ -6,44 +6,66 @@ import type { NguyenLieuRequest, LoNguyenLieuRequest } from "@/modules/nguyen-li
 // ============================================================
 
 export const getNguyenLieu = (
-    keyword = "",
-    trangThai: number | undefined = undefined,
-    page = 0,
-    size = 5,
-    sortBy = "idNguyenLieu",
-    direction = "asc"
+  keyword = "",
+  trangThai: number | undefined = undefined,
+  page = 0,
+  size = 5,
+  sortBy = "idNguyenLieu",
+  direction = "asc"
 ) => {
-    return api.get("/nguyen-lieu", {
-        params: { keyword, trangThai, page, size, sortBy, direction },
-    });
+  return api.get("/nguyen-lieu", {
+    params: { keyword, trangThai, page, size, sortBy, direction },
+  });
 };
 
 export const createNguyenLieu = (data: NguyenLieuRequest) => {
-    return api.post("/nguyen-lieu", data);
+  return api.post("/nguyen-lieu", data);
 };
 
 export const lockNguyenLieu = (id: number) => {
-    return api.patch(`/nguyen-lieu/${id}/lock`);
+  return api.patch(`/nguyen-lieu/${id}/lock`);
 };
 
 export const unlockNguyenLieu = (id: number) => {
-    return api.patch(`/nguyen-lieu/${id}/unlock`);
+  return api.patch(`/nguyen-lieu/${id}/unlock`);
 };
 
 // ============================================================
 // API: Lô Nguyên Liệu (Kho - FEFO)
 // ============================================================
 
+// export const getLoNguyenLieu = (
+//     idNguyenLieu: number,
+//     page = 0,
+//     size = 5
+// ) => {
+//     return api.get("/lo-nguyen-lieu", {
+//         params: { idNguyenLieu, page, size },
+//     });
+// };
 export const getLoNguyenLieu = (
-    idNguyenLieu: number,
-    page = 0,
-    size = 5
+  idNguyenLieu: number,
+  page = 0,
+  size = 5
 ) => {
-    return api.get("/lo-nguyen-lieu", {
-        params: { idNguyenLieu, page, size },
-    });
+  return api.get("/lo-nguyen-lieu", {
+    params: {
+      idNguyenLieu,
+      page,
+      size,
+      sortBy: "hanSuDung", // BỔ SUNG: Sắp xếp theo hạn sử dụng
+      direction: "asc"     // BỔ SUNG: HSD gần nhất lên trước (FEFO)
+    },
+  });
 };
 
+export const lockLoNguyenLieuApi = (idLo: number) => {
+  return api.put(`/lo-nguyen-lieu/${idLo}/lock`);
+};
+
+export const unlockLoNguyenLieuApi = (idLo: number) => {
+  return api.put(`/lo-nguyen-lieu/${idLo}/unlock`);
+};
 export const createLoNguyenLieu = (data: LoNguyenLieuRequest) => {
-    return api.post("/lo-nguyen-lieu", data);
+  return api.post("/lo-nguyen-lieu", data);
 };

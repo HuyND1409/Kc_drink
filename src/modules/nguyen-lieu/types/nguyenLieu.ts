@@ -21,6 +21,16 @@ export interface NguyenLieuRequest {
 // Types: Lô Nguyên Liệu
 // ============================================================
 
+// export interface LoNguyenLieu {
+//     idLo: number;
+//     maLo: string;
+//     idNguyenLieu: number;
+//     soLuongTon: number;
+//     hanSuDung: string; // ISO date string "YYYY-MM-DD"
+//     ngayNhap: string;  // ISO datetime string
+//     tenNhanVien: string; // Tên nhân viên nhập kho
+// }
+
 export interface LoNguyenLieu {
     idLo: number;
     maLo: string;
@@ -29,8 +39,9 @@ export interface LoNguyenLieu {
     hanSuDung: string; // ISO date string "YYYY-MM-DD"
     ngayNhap: string;  // ISO datetime string
     tenNhanVien: string; // Tên nhân viên nhập kho
+    trangThaiHsd?: string; // BỔ SUNG: "Còn hạn", "Sắp hết hạn", "Hết hạn!"
+    trangThai?: number;
 }
-
 export interface LoNguyenLieuRequest {
     maLo: string;
     idNguyenLieu: number;

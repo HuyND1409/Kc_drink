@@ -1,5 +1,5 @@
 <template>
-  <a-drawer :open="open" :title="`📦 Lô hàng – ${nguyenLieu?.tenNguyenLieu ?? ''}`" width="760" @close="$emit('close')">
+  <a-drawer :open="open" :title="`📦 Lô hàng – ${nguyenLieu?.tenNguyenLieu ?? ''}`" width="850" @close="$emit('close')">
     <!-- Header Drawer: Nút Nhập kho -->
     <template #extra>
       <a-button v-if="userRole === 'ADMIN'" type="primary" @click="openNhapKho = true">
@@ -17,14 +17,18 @@
 
         <!-- Hạn sử dụng -->
         <template v-if="column.key === 'hanSuDung'">
-          <a-tag :color="isExpiringSoon(record.hanSuDung) ? 'error' : 'success'">
+          <span style="font-weight: 600; margin-right: 8px;">
             {{ formatDate(record.hanSuDung) }}
-          </a-tag>
-          <a-tag v-if="isExpired(record.hanSuDung)" color="error" style="margin-left:4px">
+          </span>
+
+          <a-tag v-if="record.trangThaiHsd === 'Hết hạn!' || isExpired(record.hanSuDung)" color="error">
             Hết hạn!
           </a-tag>
-          <a-tag v-else-if="isExpiringSoon(record.hanSuDung)" color="warning" style="margin-left:4px">
+          <a-tag v-else-if="record.trangThaiHsd === 'Sắp hết hạn' || isExpiringSoon(record.hanSuDung)" color="warning">
             Sắp hết hạn
+          </a-tag>
+          <a-tag v-else color="success">
+            Còn hạn
           </a-tag>
         </template>
 
@@ -41,6 +45,40 @@
           <span style="color: #8c8c8c; margin-left: 4px; font-size: 12px">
             {{ nguyenLieu?.donViTinh }}
           </span>
+        </template>
+
+        <!-- Trạng thái Lô -->
+        <template v-if="column.key === 'trangThai'">
+          <a-tag :color="record.trangThai === 1 || record.trangThai === null ? 'success' : 'error'">
+            {{ record.trangThai === 1 || record.trangThai === null ? 'Khả dụng' : 'Đã khóa' }}
+          </a-tag>
+        </template>
+
+        <!-- Nút Khóa / Mở khóa (Giao diện thiết kế lại chỉn chu) -->
+        <template v-if="column.key === 'action'">
+          <div style="display: flex; justify-content: center; align-items: center;">
+            <a-popconfirm v-if="record.trangThai === 1 || record.trangThai === null" title="Khóa lô hàng này?"
+              description="Lô này sẽ tạm dừng tính vào tổng tồn kho." ok-text="Khóa" cancel-text="Hủy" ok-type="danger"
+              @confirm="handleLockLo(record.idLo)">
+              <a-button type="primary" danger ghost size="small" style="border-radius: 6px; font-size: 12px;">
+                <template #icon>
+                  <LockOutlined />
+                </template>
+                Khóa
+              </a-button>
+            </a-popconfirm>
+
+            <a-popconfirm v-else title="Xác nhận mở khóa lô hàng?" ok-text="Mở khóa" cancel-text="Hủy"
+              @confirm="handleUnlockLo(record.idLo)">
+              <a-button size="small"
+                style="color: #52c41a; border-color: #b7eb8f; background: #f6ffed; border-radius: 6px; font-size: 12px;">
+                <template #icon>
+                  <UnlockOutlined />
+                </template>
+                Mở khóa
+              </a-button>
+            </a-popconfirm>
+          </div>
         </template>
 
       </template>
@@ -81,21 +119,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from "vue";
+import { ref, reactive, watch, onMounted } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 import type { AxiosError } from "axios";
 import dayjs, { type Dayjs } from "dayjs";
-import { PlusOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined, LockOutlined, UnlockOutlined } from "@ant-design/icons-vue";
 
 import type { NguyenLieu, LoNguyenLieu } from "../types/nguyenLieu";
-// Sửa dòng import thành:
-import { getLoNguyenLieu, createLoNguyenLieu } from "@/modules/nguyen-lieu/api/nguyenLieuApi";
+import {
+  getLoNguyenLieu,
+  createLoNguyenLieu,
+  lockLoNguyenLieuApi,
+  unlockLoNguyenLieuApi
+} from "@/modules/nguyen-lieu/api/nguyenLieuApi";
 import { useAuthStore } from "@/modules/auth/store/authStore";
 
-
 // ============================================================
-// Props & Emits
+// Props & Emits (Đã gộp chung thành 1)
 // ============================================================
 const props = defineProps<{
   open: boolean;
@@ -105,6 +146,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "close"): void;
   (e: "success"): void;
+  (e: "refreshMainList"): void;
 }>();
 
 const authStore = useAuthStore();
@@ -112,7 +154,6 @@ const authStore = useAuthStore();
 // ============================================================
 // State: Quyền người dùng
 // ============================================================
-import { onMounted } from 'vue';
 const userRole = ref<string>('');
 
 onMounted(() => {
@@ -121,7 +162,7 @@ onMounted(() => {
     try {
       const user = JSON.parse(userStr);
       userRole.value = user.role;
-    } catch (e) {}
+    } catch { }
   }
 });
 
@@ -157,12 +198,14 @@ const nhapKhoForm = reactive<{
 // Columns
 // ============================================================
 const loColumns = [
-  { title: "#", dataIndex: "idLo", width: 70, align: "center" as const },
-  { title: "Mã lô", dataIndex: "maLo", width: 120, align: "center" as const },
-  { title: "Số lượng tồn", key: "soLuongTon", width: 160, align: "center" as const },
+  { title: "#", dataIndex: "idLo", width: 60, align: "center" as const },
+  { title: "Mã lô", dataIndex: "maLo", width: 110, align: "center" as const },
+  { title: "Số lượng tồn", key: "soLuongTon", width: 140, align: "center" as const },
   { title: "Hạn sử dụng (FEFO)", key: "hanSuDung", align: "center" as const },
-  { title: "Ngày nhập", key: "ngayNhap", width: 160, align: "center" as const },
-  { title: "Người nhập", dataIndex: "tenNhanVien", width: 150 },
+  { title: "Ngày nhập", key: "ngayNhap", width: 150, align: "center" as const },
+  { title: "Người nhập", dataIndex: "tenNhanVien", width: 130 },
+  { title: 'Trạng thái', key: 'trangThai', align: 'center' as const, width: 110 },
+  { title: 'Thao tác', key: 'action', align: 'center' as const, width: 110 }
 ];
 
 // ============================================================
@@ -189,7 +232,6 @@ const nhapKhoRules: Record<string, Rule[]> = {
   ],
 };
 
-// Không cho chọn ngày trong quá khứ
 const disabledPastDate = (current: Dayjs) => {
   return current && current.isBefore(dayjs().startOf("day"));
 };
@@ -198,6 +240,7 @@ const disabledPastDate = (current: Dayjs) => {
 // Helpers
 // ============================================================
 const formatDate = (dateStr: string) => {
+  if (!dateStr) return "-";
   return dayjs(dateStr).format("DD/MM/YYYY");
 };
 
@@ -207,12 +250,14 @@ const formatDateTime = (dateStr: string) => {
 };
 
 const isExpired = (dateStr: string) => {
-  return dayjs(dateStr).isBefore(dayjs(), "day");
+  if (!dateStr) return false;
+  return dayjs(dateStr).isBefore(dayjs().startOf("day"));
 };
 
 const isExpiringSoon = (dateStr: string) => {
-  const diffDays = dayjs(dateStr).diff(dayjs(), "day");
-  return diffDays >= 0 && diffDays <= 30;
+  if (!dateStr) return false;
+  const diffDays = dayjs(dateStr).diff(dayjs().startOf("day"), "day");
+  return diffDays >= 0 && diffDays <= 7;
 };
 
 // ============================================================
@@ -238,6 +283,33 @@ const onPageChange = (page: number, size: number) => {
   currentPage.value = page;
   pageSize.value = size;
   loadLo();
+};
+
+// ============================================================
+// Thao tác Khóa / Mở khóa lô (Đã sửa gọi đúng hàm loadLo)
+// ============================================================
+const handleLockLo = async (idLo: number) => {
+  try {
+    await lockLoNguyenLieuApi(idLo);
+    message.success('Đã khóa lô hàng thành công!');
+    await loadLo();
+    emit('success');
+    emit('refreshMainList');
+  } catch (error: any) {
+    message.error(error.response?.data?.message || 'Có lỗi xảy ra khi khóa lô hàng!');
+  }
+};
+
+const handleUnlockLo = async (idLo: number) => {
+  try {
+    await unlockLoNguyenLieuApi(idLo);
+    message.success('Đã mở khóa lô hàng thành công!');
+    await loadLo();
+    emit('success');
+    emit('refreshMainList');
+  } catch (error: any) {
+    message.error(error.response?.data?.message || 'Có lỗi xảy ra khi mở khóa lô hàng!');
+  }
 };
 
 // ============================================================
@@ -270,6 +342,7 @@ const handleNhapKho = async () => {
     currentPage.value = 1;
     await loadLo();
     emit("success");
+    emit("refreshMainList");
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
     if (err.response?.status === 403) {
@@ -283,7 +356,7 @@ const handleNhapKho = async () => {
 };
 
 // ============================================================
-// Watch: Khi Drawer mở (nguyenLieu thay đổi) → load lô mới
+// Watch
 // ============================================================
 watch(
   () => props.open,

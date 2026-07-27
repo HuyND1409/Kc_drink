@@ -14,6 +14,18 @@ export interface DiaChi {
 
   trangThai: number;
 
+  provinceId: number;
+
+  districtId: number;
+
+  wardCode: string;
+
+  tenTinhThanh: string;
+
+  tenQuanHuyen: string;
+
+  tenPhuongXa: string;
+
 }
 
 export interface DiaChiRequest {
@@ -27,5 +39,17 @@ export interface DiaChiRequest {
   diaChi: string;
 
   macDinh: boolean;
+
+  provinceId: number;
+
+  districtId: number;
+
+  wardCode: string;
+
+  tenTinhThanh: string;
+
+  tenQuanHuyen: string;
+
+  tenPhuongXa: string;
 
 }
