@@ -18,7 +18,7 @@
               {{ (auth.user?.tenNguoiDung || auth.user?.username)?.charAt(0)?.toUpperCase() || 'U' }}
             </a-avatar>
             <span class="username">
-              Xin chào, <strong>{{ auth.user?.tenNguoiDung || auth.user?.username }}</strong>
+              {{ greetingText }}, <strong>{{ auth.user?.tenNguoiDung || auth.user?.username }}</strong>
             </span>
           </div>
           <template #overlay>
@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/modules/auth/store/authStore";
 import {
@@ -76,6 +76,14 @@ const updateDateTime = () => {
 };
 onMounted(() => { updateDateTime(); timer = setInterval(updateDateTime, 1000); });
 onUnmounted(() => { clearInterval(timer); });
+
+const greetingText = computed(() => {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 11) return "Chào buổi sáng";
+  if (h >= 11 && h < 14) return "Chào buổi trưa";
+  if (h >= 14 && h < 18) return "Chào buổi chiều";
+  return "Chào buổi tối";
+});
 
 const logout = () => {
   auth.logout();
