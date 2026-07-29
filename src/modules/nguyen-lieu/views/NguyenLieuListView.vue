@@ -56,9 +56,27 @@
 
       </div>
 
-      <a-button v-if="isAdmin" type="primary" size="large" @click="openModal = true">
-        + Thêm nguyên liệu
-      </a-button>
+      <!-- 🟢 CỤM NÚT THAO TÁC CỦA ADMIN -->
+      <div style="display: flex; gap: 8px; align-items: center;">
+
+        <!-- NÚT IMPORT EXCEL -->
+        <a-button v-if="isAdmin" :loading="loadingImport" size="large"
+          style="background-color: #217346; color: #fff; border-color: #217346;" @click="triggerFileInput">
+          <template #icon>
+            <FileExcelOutlined />
+          </template>
+          Import Excel
+        </a-button>
+
+        <!-- INPUT FILE ẨN -->
+        <input ref="fileInputRef" type="file" accept=".xlsx" style="display: none" @change="handleFileUpload" />
+
+        <!-- NÚT THÊM NGUYÊN LIỆU -->
+        <a-button v-if="isAdmin" type="primary" size="large" @click="openModal = true">
+          + Thêm nguyên liệu
+        </a-button>
+
+      </div>
 
     </div>
 
@@ -105,13 +123,14 @@
 import { onMounted, ref, computed } from "vue";
 import { message } from "ant-design-vue";
 import type { AxiosError } from "axios";
+import { FileExcelOutlined } from "@ant-design/icons-vue";
 import { useAuthStore } from "@/modules/auth/store/authStore";
 
 import NguyenLieuTable from "../components/NguyenLieuTable.vue";
 import NguyenLieuForm from "../components/NguyenLieuForm.vue";
 import LoNguyenLieuDrawer from "../components/LoNguyenLieuDrawer.vue";
 
-import { getNguyenLieu, createNguyenLieu, lockNguyenLieu, unlockNguyenLieu } from "@/modules/nguyen-lieu/api/nguyenLieuApi";
+import { getNguyenLieu, createNguyenLieu, lockNguyenLieu, unlockNguyenLieu, importLoNguyenLieuApi } from "@/modules/nguyen-lieu/api/nguyenLieuApi";
 import type { NguyenLieu, NguyenLieuRequest } from "../types/nguyenLieu";
 
 // ============================================================
@@ -136,6 +155,50 @@ const openModal = ref(false);
 // Drawer
 const openDrawer = ref(false);
 const selectedNguyenLieu = ref<NguyenLieu>();
+
+// State Import Excel
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const loadingImport = ref(false);
+
+// ============================================================
+// Logic Import Excel Batch
+// ============================================================
+const triggerFileInput = () => {
+  fileInputRef.value?.click();
+};
+
+const handleFileUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  const idNhanVien = authStore.user?.idNhanVien;
+  if (!idNhanVien) {
+    message.error("Không xác định được nhân viên, vui lòng đăng nhập lại!");
+    target.value = "";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("idNhanVien", idNhanVien.toString());
+
+  loadingImport.value = true;
+  try {
+    const res = await importLoNguyenLieuApi(formData);
+    message.success(res.data?.message || "Import danh sách lô nguyên liệu thành công!");
+
+    // Reset về trang 1 và load lại danh sách (cập nhật tổng tồn kho)
+    currentPage.value = 1;
+    await loadData();
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.message || "Có lỗi xảy ra khi import file Excel!";
+    message.error(errorMsg);
+  } finally {
+    loadingImport.value = false;
+    target.value = ""; // Reset input file
+  }
+};
 
 // ============================================================
 // Load danh sách nguyên liệu

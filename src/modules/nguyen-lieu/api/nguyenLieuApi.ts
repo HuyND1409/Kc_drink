@@ -69,3 +69,11 @@ export const unlockLoNguyenLieuApi = (idLo: number) => {
 export const createLoNguyenLieu = (data: LoNguyenLieuRequest) => {
   return api.post("/lo-nguyen-lieu", data);
 };
+// 📄 Import Excel Lô Nguyên Liệu
+export const importLoNguyenLieuApi = (formData: FormData) => {
+  return api.post("/lo-nguyen-lieu/import", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+};
