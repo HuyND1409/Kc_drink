@@ -43,7 +43,7 @@
             </a-button>
           </a-tooltip>
 
-          <a-tooltip v-if="userRole === 'ADMIN'"
+          <a-tooltip v-if="isAdmin"
             :title="record.trangThai === 1 ? 'Khóa nguyên liệu' : 'Mở khóa nguyên liệu'">
             <a-button v-if="record.trangThai === 1" danger size="small"
               @click.stop="$emit('lock', record.idNguyenLieu)">
@@ -82,19 +82,11 @@ defineEmits<{
   (e: "unlock", id: number): void;
 }>();
 
-import { ref, onMounted } from 'vue';
+import { computed } from 'vue';
+import { useAuthStore } from "@/modules/auth/store/authStore";
 
-const userRole = ref<string>('');
-
-onMounted(() => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      userRole.value = user.role;
-    } catch { }
-  }
-});
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 
 const columns = [
   {

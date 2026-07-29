@@ -56,7 +56,7 @@
 
       </div>
 
-      <a-button v-if="userRole === 'ADMIN'" type="primary" size="large" @click="openModal = true">
+      <a-button v-if="isAdmin" type="primary" size="large" @click="openModal = true">
         + Thêm nguyên liệu
       </a-button>
 
@@ -102,9 +102,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, computed } from "vue";
 import { message } from "ant-design-vue";
 import type { AxiosError } from "axios";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 
 import NguyenLieuTable from "../components/NguyenLieuTable.vue";
 import NguyenLieuForm from "../components/NguyenLieuForm.vue";
@@ -116,7 +117,9 @@ import type { NguyenLieu, NguyenLieuRequest } from "../types/nguyenLieu";
 // ============================================================
 // State
 // ============================================================
-const userRole = ref<string>('');
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
+
 const dsNguyenLieu = ref<NguyenLieu[]>([]);
 const loading = ref(false);
 
@@ -202,13 +205,6 @@ const onViewLo = (record: NguyenLieu) => {
 // Init
 // ============================================================
 onMounted(() => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      userRole.value = user.role;
-    } catch {}
-  }
   loadData();
 });
 
