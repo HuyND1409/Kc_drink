@@ -18,17 +18,11 @@
 
       <!-- Địa chỉ -->
       <template v-if="column.key === 'diaChiMacDinh'">
-
         <a-tooltip :title="record.diaChiMacDinh">
-
           <span class="address">
-
             {{ record.diaChiMacDinh || "-" }}
-
           </span>
-
         </a-tooltip>
-
       </template>
 
       <!-- Trạng thái -->
@@ -40,18 +34,18 @@
 
       <!-- Thao tác -->
       <template v-if="column.key === 'action'">
-
-        <a-dropdown>
-
+        <a-dropdown trigger="click">
           <a-button>
-
             <MoreOutlined />
-
           </a-button>
 
           <template #overlay>
-
             <a-menu>
+
+              <a-menu-item @click="openDetail(record)">
+                <EyeOutlined />
+                Xem chi tiết
+              </a-menu-item>
 
               <a-menu-item @click="$emit('edit', record)">
                 <EditOutlined />
@@ -74,27 +68,37 @@
               </a-menu-item>
 
             </a-menu>
-
           </template>
-
         </a-dropdown>
-
       </template>
 
     </template>
-
   </a-table>
+
+  <KhachHangDetailModal v-model:open="detailVisible" :khachHang="detailRecord" />
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import type { KhachHang } from "../types/khachHang";
+import KhachHangDetailModal from "./KhachHangDetailModal.vue";
+
 import {
   MoreOutlined,
   EditOutlined,
   HomeOutlined,
   LockOutlined,
   UnlockOutlined,
+  EyeOutlined,
 } from "@ant-design/icons-vue";
+
+const detailVisible = ref(false);
+const detailRecord = ref<KhachHang>();
+
+const openDetail = (record: KhachHang) => {
+  detailRecord.value = record;
+  detailVisible.value = true;
+};
 
 defineProps<{
   data: KhachHang[];
@@ -109,14 +113,50 @@ defineEmits<{
 }>();
 
 const columns = [
-  { title: "Tên khách hàng", dataIndex: "tenKhachHang", width: 180 },
-  { title: "SĐT", dataIndex: "sdt", width: 130 },
-  { title: "Email", dataIndex: "email", width: 240 },
-  { title: "Địa chỉ mặc định", key: "diaChiMacDinh", width: 320 },
-  { title: "Giới tính", key: "gioiTinh", width: 110, align: "center" },
-  { title: "Điểm", key: "diemTichLuy", width: 100, align: "center" },
-  { title: "Trạng thái", key: "trangThai", width: 120, align: "center" },
-  { title: "Thao tác", key: "action", width: 80, align: "center" }
+  {
+    title: "Tên khách hàng",
+    dataIndex: "tenKhachHang",
+    width: 180,
+  },
+  {
+    title: "SĐT",
+    dataIndex: "sdt",
+    width: 130,
+  },
+  {
+    title: "Email",
+    dataIndex: "email",
+    width: 240,
+  },
+  {
+    title: "Địa chỉ mặc định",
+    key: "diaChiMacDinh",
+    width: 320,
+  },
+  {
+    title: "Giới tính",
+    key: "gioiTinh",
+    width: 110,
+    align: "center",
+  },
+  {
+    title: "Điểm",
+    key: "diemTichLuy",
+    width: 100,
+    align: "center",
+  },
+  {
+    title: "Trạng thái",
+    key: "trangThai",
+    width: 120,
+    align: "center",
+  },
+  {
+    title: "Thao tác",
+    key: "action",
+    width: 80,
+    align: "center",
+  },
 ];
 </script>
 
@@ -141,16 +181,10 @@ const columns = [
 }
 
 .address {
-
   display: block;
-
   max-width: 280px;
-
   overflow: hidden;
-
   text-overflow: ellipsis;
-
   white-space: nowrap;
-
 }
 </style>

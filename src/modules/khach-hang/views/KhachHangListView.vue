@@ -65,12 +65,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref , watch} from "vue";
+import { onMounted, onUnmounted, ref , watch} from "vue";
 import { message } from "ant-design-vue";
 import type { AxiosError } from "axios";
 import KhachHangTable from "../components/KhachHangTable.vue";
 import KhachHangForm from "../components/KhachHangForm.vue";
 import DiaChiModal from "@/modules/dia_chi/components/DiaChiModal.vue";
+import { notifyDataChanged, onDataChanged } from "@/utils/appSync";
 
 import {
   getKhachHang,
@@ -166,6 +167,7 @@ const saveKhachHang = async (data: KhachHangRequest) => {
     editing.value = undefined;
     openModal.value = false;
     await loadData();
+    notifyDataChanged("CUSTOMER_UPDATED");
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
     message.error(err.response?.data?.message || "Có lỗi xảy ra");
@@ -201,6 +203,7 @@ const onLock = async (id: number) => {
     await lockKhachHang(id);
     message.success("Đã khóa khách hàng");
     loadData();
+    notifyDataChanged("CUSTOMER_UPDATED");
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
     message.error(err.response?.data?.message || "Có lỗi xảy ra");
@@ -212,6 +215,7 @@ const onUnlock = async (id: number) => {
     await unlockKhachHang(id);
     message.success("Đã mở khóa khách hàng");
     loadData();
+    notifyDataChanged("CUSTOMER_UPDATED");
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
     message.error(err.response?.data?.message || "Có lỗi xảy ra");
@@ -220,6 +224,16 @@ const onUnlock = async (id: number) => {
 
 onMounted(() => {
   loadData();
+});
+
+const stopSync = onDataChanged((type) => {
+  if (type === "CUSTOMER_UPDATED") {
+    loadData();
+  }
+});
+
+onUnmounted(() => {
+  stopSync();
 });
 
 // TỰ ĐỘNG LÀM MỚI BẢNG KHI ĐÓNG MODAL ĐỊA CHỈ

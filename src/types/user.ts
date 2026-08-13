@@ -6,4 +6,8 @@ export interface User {
     tenNguoiDung: string | null;
     diemTichLuy?: number;
     idNhanVien?: number;
+    soNgayDongHanh?: number;
+    gioiTinh?: boolean | null;
+    ngaySinh?: string | null;
+    sdt?: string;
 }

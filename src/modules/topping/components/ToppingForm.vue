@@ -32,7 +32,7 @@
           </a-form-item>
         </a-col>
 
-        <a-col :span="12">
+        <!-- <a-col :span="12">
           <a-form-item label="Tổng Tồn Kho" name="tongTonKho">
             <a-input-number
               v-model:value="form.tongTonKho"
@@ -42,10 +42,10 @@
               :step="10"
             />
           </a-form-item>
-        </a-col>
+        </a-col> -->
       </a-row>
 
-      <a-form-item label="Trạng thái" name="trangThai">
+      <!-- <a-form-item label="Trạng thái" name="trangThai">
         <div style="display: flex; align-items: center; gap: 10px;">
           <a-switch
             :checked="form.trangThai === 1"
@@ -57,7 +57,7 @@
             {{ form.trangThai === 1 ? 'Hiển thị trên menu bán hàng' : 'Ẩn khỏi menu bán hàng' }}
           </span>
         </div>
-      </a-form-item>
+      </a-form-item> -->
     </a-form>
   </a-modal>
 </template>

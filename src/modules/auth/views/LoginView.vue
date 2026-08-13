@@ -21,7 +21,7 @@
           <router-link to="/forgot-password" class="forgot-link">Quên mật khẩu?</router-link>
         </div>
 
-        <a-button type="primary" block html-type="submit" size="large">
+        <a-button type="primary" block html-type="submit" size="large" :loading="loading">
           Đăng nhập
         </a-button>
 
@@ -83,10 +83,23 @@ const handleLogin = async () => {
     router.push("/");
   } catch (error: unknown) {
     console.error(error);
+
     if (axios.isAxiosError(error)) {
-      message.error(
-        error.response?.data?.message || "Đăng nhập thất bại"
-      );
+      if (!error.response) {
+        message.error("Không thể kết nối đến máy chủ");
+      } else if (error.response.status === 401) {
+        message.error("Tên đăng nhập hoặc mật khẩu không chính xác");
+      } else if (error.response.status === 403) {
+        message.error(
+          error.response.data?.message ||
+          "Tài khoản đã bị khóa hoặc không có quyền truy cập"
+        );
+      } else {
+        message.error(
+          error.response.data?.message ||
+          "Đăng nhập thất bại"
+        );
+      }
     } else {
       message.error("Có lỗi xảy ra");
     }

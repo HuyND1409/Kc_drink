@@ -52,6 +52,22 @@
           </a-form-item>
         </a-col>
 
+        <a-col :span="12">
+          <a-form-item label="Giới tính" name="gioiTinh">
+            <a-radio-group v-model:value="form.gioiTinh">
+              <a-radio :value="true">Nam</a-radio>
+              <a-radio :value="false">Nữ</a-radio>
+            </a-radio-group>
+          </a-form-item>
+        </a-col>
+
+        <a-col :span="12">
+          <a-form-item label="Ngày sinh" name="ngaySinh">
+            <a-date-picker v-model:value="form.ngaySinh" style="width: 100%" format="DD/MM/YYYY"
+              placeholder="Chọn ngày sinh" />
+          </a-form-item>
+        </a-col>
+
       </a-row>
 
     </a-form>
@@ -65,6 +81,8 @@ import {
   ref,
   watch
 } from "vue";
+
+import dayjs from "dayjs";
 
 import type {
   FormInstance,
@@ -109,6 +127,10 @@ const form = reactive<NhanVienRequest>({
   email: "",
 
   chucVu: "STAFF",
+
+  gioiTinh: true,
+
+  ngaySinh: null,
 
 });
 
@@ -230,6 +252,10 @@ const resetForm = () => {
 
   form.chucVu = "STAFF";
 
+  form.gioiTinh = true;
+
+  form.ngaySinh = null;
+
   formRef.value?.clearValidate();
 
 };
@@ -259,7 +285,22 @@ watch(
         props.model.email;
 
       form.chucVu =
-        props.model.chucVu;
+        props.model.chucVu === "Quản lý"
+          ? "ADMIN"
+          : props.model.chucVu === "Nhân viên"
+            ? "STAFF"
+            : props.model.chucVu;
+            
+      form.gioiTinh =
+        props.model.gioiTinh !== undefined &&
+          props.model.gioiTinh !== null
+          ? props.model.gioiTinh
+          : true;
+
+      form.ngaySinh =
+        props.model.ngaySinh
+          ? dayjs(props.model.ngaySinh) as never
+          : null;
 
     }
 
@@ -291,16 +332,22 @@ const handleSubmit = async () => {
   try {
     await formRef.value?.validate();
     loading.value = true;
+
     const data: Partial<typeof form> = {
       ...form,
     };
+
+    data.ngaySinh = form.ngaySinh
+      ? dayjs(form.ngaySinh).format("YYYY-MM-DD")
+      : null;
+
     if (!data.password) {
       delete data.password; // Lệnh delete này giờ hợp lệ 100%
     }
+
     // Dùng 'as never' để lừa hàm emit, bỏ qua check type gắt gao
     emit("save", data as never);
-  } finally
-  {
+  } finally {
     loading.value = false;
   }
 };

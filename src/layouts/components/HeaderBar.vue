@@ -18,7 +18,9 @@
               {{ (auth.user?.tenNguoiDung || auth.user?.username)?.charAt(0)?.toUpperCase() || 'U' }}
             </a-avatar>
             <span class="username">
-              {{ greetingText }}, <strong>{{ auth.user?.tenNguoiDung || auth.user?.username }}</strong>
+              {{ greetingText }}
+              <strong>{{ auth.user?.tenNguoiDung || auth.user?.username }}</strong>,
+              {{ dongHanhText }}
             </span>
           </div>
           <template #overlay>
@@ -79,10 +81,17 @@ onUnmounted(() => { clearInterval(timer); });
 
 const greetingText = computed(() => {
   const h = new Date().getHours();
-  if (h >= 5 && h < 11) return "Chào buổi sáng";
+  if (h >= 5 && h < 11) return "Chào buổi sáng, chúc bạn làm việc hiệu quả";
   if (h >= 11 && h < 14) return "Chào buổi trưa";
   if (h >= 14 && h < 18) return "Chào buổi chiều";
   return "Chào buổi tối";
+});
+
+const dongHanhText = computed(() => {
+  const role = auth.user?.role;
+  const days = auth.user?.soNgayDongHanh;
+  if ((role === 'ADMIN' || role === 'STAFF') && days != null) return `bạn đã gia nhập KC Drink được ${days} ngày!`;
+  return 'chúc bạn một ngày làm việc hiệu quả!';
 });
 
 const logout = () => {

@@ -14,6 +14,10 @@ export interface NhanVien {
 
     username: string;
 
+    gioiTinh?: boolean | null;
+
+    ngaySinh?: string | null;
+
 }
 
 export interface NhanVienRequest {
@@ -29,6 +33,10 @@ export interface NhanVienRequest {
     username: string;
 
     password: string;
+
+    gioiTinh?: boolean | null;
+
+    ngaySinh?: string | null;
 
 }
 

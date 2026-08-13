@@ -1,34 +1,163 @@
 <template>
-  <a-card :bordered="false" class="custom-card">
-    <template #title>
-      <span class="card-title">
-        📊 Tổng quan hệ thống
-      </span>
-    </template>
+  <div>
+    <a-card :bordered="false" class="custom-card" style="margin-bottom: 20px">
+      <template #title>
+        <span class="card-title">📊 Tổng quan hệ thống</span>
+        <div class="card-subtitle">
+          Xin chào, <strong>{{ auth.user?.tenNguoiDung || 'Admin' }}</strong> 👋 — Quyền hạn:
+          <a-tag color="blue" style="margin-left: 4px">{{ auth.user?.role || '—' }}</a-tag>
+        </div>
+      </template>
 
-    <div class="dashboard-content">
-      <h3 class="welcome-text">
-        Xin chào, <span class="highlight-user">{{ auth.user?.tenNguoiDung || 'Admin' }}</span> 👋
-      </h3>
+      <a-spin :spinning="loading">
+        <!-- PHẦN 1: TỔNG QUAN -->
+        <div class="section-label">📋 Tổng quan</div>
+        <a-row :gutter="[16, 16]">
+          <a-col :xs="24" :sm="12" :md="6">
+            <a-card class="stat-card" :bordered="false">
+              <a-statistic
+                title="Khách hàng"
+                :value="data.tongKhachHang"
+                prefix="👤"
+              />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="6">
+            <a-card class="stat-card" :bordered="false">
+              <a-statistic
+                title="Nhân viên"
+                :value="data.tongNhanVien"
+                prefix="🧑‍💼"
+              />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="6">
+            <a-card class="stat-card" :bordered="false">
+              <a-statistic
+                title="Voucher đang hoạt động"
+                :value="data.voucherDangHoatDong"
+                prefix="🎟️"
+              />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="6">
+            <a-card class="stat-card" :bordered="false">
+              <a-statistic
+                title="Topping đang bán"
+                :value="data.toppingDangBan"
+                prefix="🧁"
+              />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="6">
+            <a-card class="stat-card" :bordered="false">
+              <a-statistic
+                title="Nguyên liệu đang hoạt động"
+                :value="data.nguyenLieuDangHoatDong"
+                prefix="🌿"
+              />
+            </a-card>
+          </a-col>
+        </a-row>
 
-      <div class="role-badge-wrapper">
-        <span>Quyền hạn:</span>
-        <a-tag color="blue" class="role-badge">
-          {{ auth.user?.role || 'Chưa xác định' }}
-        </a-tag>
-      </div>
-    </div>
-  </a-card>
+        <!-- PHẦN 2: CẢNH BÁO KHO -->
+        <div class="section-label" style="margin-top: 24px">⚠️ Cảnh báo kho</div>
+        <a-row :gutter="[16, 16]">
+          <a-col :xs="24" :sm="12" :md="8">
+            <a-card
+              class="stat-card warn-card"
+              :bordered="false"
+            >
+              <a-statistic
+                title="Lô topping sắp hết hạn"
+                :value="data.loToppingSapHetHan"
+                prefix="⏰"
+                :value-style="data.loToppingSapHetHan > 0 ? { color: '#fa8c16' } : {}"
+              />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8">
+            <a-card
+              class="stat-card warn-card"
+              :bordered="false"
+            >
+              <a-statistic
+                title="Lô nguyên liệu sắp hết hạn"
+                :value="data.loNguyenLieuSapHetHan"
+                prefix="⏰"
+                :value-style="data.loNguyenLieuSapHetHan > 0 ? { color: '#fa8c16' } : {}"
+              />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8">
+            <a-card
+              class="stat-card warn-card"
+              :bordered="false"
+            >
+              <a-statistic
+                title="Nguyên liệu dưới ngưỡng"
+                :value="data.nguyenLieuDuoiNguong"
+                prefix="📉"
+                :value-style="data.nguyenLieuDuoiNguong > 0 ? { color: '#f5222d' } : {}"
+              />
+            </a-card>
+          </a-col>
+        </a-row>
+      </a-spin>
+    </a-card>
+  </div>
 </template>
 
 <script setup lang="ts">
+import { onMounted, reactive, ref } from "vue";
+import { message } from "ant-design-vue";
+import axios from "axios";
 import { useAuthStore } from "@/modules/auth/store/authStore";
+import { getDashboard } from "../api/dashboardApi";
+import type { DashboardData } from "../api/dashboardApi";
 
 const auth = useAuthStore();
+const loading = ref(false);
+
+const data = reactive<DashboardData>({
+  tongKhachHang: 0,
+  tongNhanVien: 0,
+  voucherDangHoatDong: 0,
+  toppingDangBan: 0,
+  nguyenLieuDangHoatDong: 0,
+  loToppingSapHetHan: 0,
+  loNguyenLieuSapHetHan: 0,
+  nguyenLieuDuoiNguong: 0,
+});
+
+const loadDashboard = async () => {
+  loading.value = true;
+  try {
+    const response = await getDashboard();
+    const result = response.data.data;
+    if (result) {
+      Object.assign(data, result);
+    }
+  } catch (error: unknown) {
+    console.error("Lỗi tải dashboard:", error);
+    if (axios.isAxiosError(error)) {
+      message.error(
+        error.response?.data?.message || "Không thể tải dữ liệu tổng quan"
+      );
+    } else {
+      message.error("Không thể tải dữ liệu tổng quan");
+    }
+  } finally {
+    loading.value = false;
+  }
+};
+
+onMounted(() => {
+  loadDashboard();
+});
 </script>
 
 <style scoped>
-/* Đồng bộ 100% với style của trang Nhân viên */
 .custom-card {
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
@@ -42,32 +171,28 @@ const auth = useAuthStore();
   letter-spacing: -0.5px;
 }
 
-.dashboard-content {
-  padding: 8px 0;
+.card-subtitle {
+  font-size: 13px;
+  color: #595959;
+  font-weight: 400;
+  margin-top: 2px;
 }
 
-.welcome-text {
-  font-size: 18px;
+.section-label {
+  font-size: 15px;
   font-weight: 600;
   color: #262626;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
-.highlight-user {
-  color: #1890ff; /* Màu xanh đặc trưng Ant Design giống nút Tìm kiếm/Reload */
+.stat-card {
+  border-radius: 8px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
 }
 
-.role-badge-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #595959;
-}
-
-.role-badge {
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 4px;
+.warn-card {
+  background: #fffbe6;
+  border: 1px solid #ffe58f;
 }
 </style>

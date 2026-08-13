@@ -20,6 +20,7 @@ import VoucherListView from "@/modules/voucher/views/VoucherListView.vue";
 import NguyenLieuListView from "@/modules/nguyen-lieu/views/NguyenLieuListView.vue";
 // 👇 THÊM IMPORT MODULE TOPPING Ở ĐÂY 👇
 import ToppingListView from "@/modules/topping/views/ToppingListView.vue";
+import PayOSDemoView from "@/modules/payos/views/PayOSDemoView.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -34,6 +35,11 @@ const router = createRouter({
       path: "/change-password",
       component: () =>
         import("@/modules/auth/views/ChangePasswordView.vue"),
+    },
+    {
+      path: "/change-phone",
+      component: () =>
+        import("@/modules/auth/views/ChangePhoneView.vue"),
     },
     {
       path: "/profile",
@@ -69,6 +75,16 @@ const router = createRouter({
           component: () =>
             import("@/modules/van_chuyen/views/GhnTestView.vue"),
         },
+
+        // 👇 ROUTE PAYOS DEMO 👇
+        { path: "payos-demo", component: PayOSDemoView },
+
+        // 👇 ROUTE NHẬT KÝ HỆ THỐNG (CHỈ ADMIN) 👇
+        {
+          path: "nhat-ky-he-thong",
+          component: () =>
+            import("@/modules/nhat-ky-he-thong/views/NhatKyListView.vue"),
+        },
       ],
     },
   ],
@@ -96,7 +112,7 @@ router.beforeEach((to, from, next) => {
     const role = auth.user?.role;
 
     // Khách hàng (USER): Chỉ được phép vào danh sách trang được chỉ định (Shop, Đổi pass, Profile)
-    const allowedUserPaths = ["/shop", "/change-password", "/profile"];
+    const allowedUserPaths = ["/shop", "/change-password", "/change-phone", "/profile"];
     if (role === "USER" && !allowedUserPaths.includes(to.path)) {
       return next("/shop");
     }
@@ -106,6 +122,16 @@ router.beforeEach((to, from, next) => {
       (role === "ADMIN" || role === "STAFF") &&
       to.path.startsWith("/shop")
     ) {
+      return next("/");
+    }
+
+    // Nhân viên (STAFF): Không được phép truy cập vào trang Quản lý Nhân viên
+    if (role === "STAFF" && to.path === "/nhan-vien") {
+      return next("/");
+    }
+
+    // Nhân viên (STAFF): Không được phép truy cập vào trang Nhật ký hệ thống
+    if (role === "STAFF" && to.path === "/nhat-ky-he-thong") {
       return next("/");
     }
   }
