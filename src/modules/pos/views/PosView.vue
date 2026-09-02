@@ -1,0 +1,1635 @@
+<template>
+  <div class="pos-wrapper">
+    <!-- ============================================================ -->
+    <!-- PHẦN TRÁI: Danh sách sản phẩm -->
+    <!-- ============================================================ -->
+    <div class="pos-left">
+      <!-- Header -->
+      <div class="pos-left-header">
+        <span class="pos-title">🛒 Bán hàng tại quầy</span>
+        <a-input-search
+          v-model:value="keyword"
+          placeholder="Tìm sản phẩm..."
+          allow-clear
+          style="width: 240px"
+          @search="onSearch"
+          @clear="onSearch"
+        />
+      </div>
+
+      <!-- Vùng scroll sản phẩm: flex:1 để pagination luôn nằm cuối -->
+      <div class="product-scroll-area">
+        <a-spin :spinning="loadingSanPham" class="product-spin">
+          <div v-if="dsSanPham.length === 0 && !loadingSanPham" class="empty-products">
+            <a-empty description="Không tìm thấy sản phẩm" />
+          </div>
+
+          <div v-else class="product-grid">
+            <div
+              v-for="sp in dsSanPham"
+              :key="sp.idSanPham"
+              class="product-card"
+              @click="onClickSanPham(sp)"
+            >
+              <div class="product-img-wrap">
+                <img
+                  v-if="sp.hinhAnh"
+                  :src="sp.hinhAnh"
+                  :alt="sp.tenSanPham"
+                  class="product-img"
+                />
+                <div v-else class="product-img-placeholder">
+                  <span>☕</span>
+                </div>
+              </div>
+              <div class="product-info">
+                <div class="product-name">{{ sp.tenSanPham }}</div>
+                <div class="product-price">{{ formatVND(sp.gia) }}</div>
+              </div>
+            </div>
+          </div>
+        </a-spin>
+      </div>
+
+      <!-- Pagination luôn nằm cuối panel trái, tách khỏi scroll area -->
+      <div class="pos-pagination">
+        <a-pagination
+          :current="currentPage"
+          :page-size="pageSize"
+          :total="total"
+          size="small"
+          :show-total="(t: number) => `${t} sản phẩm`"
+          @change="onPageChange"
+        />
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PHẦN PHẢI: Hóa đơn hiện tại -->
+    <!-- ============================================================ -->
+    <div class="pos-right">
+      <!-- ---- Tab bar hóa đơn ---- -->
+      <div class="invoice-tab-bar">
+        <div class="invoice-tabs">
+          <a-tooltip
+            v-for="hd in openInvoices"
+            :key="hd.idHoaDon"
+            :title="hd.maHoaDon"
+            placement="bottom"
+          >
+            <button
+              class="invoice-tab"
+              :class="{ active: hd.idHoaDon === activeInvoiceId }"
+              @click="switchInvoice(hd.idHoaDon)"
+            >
+              {{ hd.maHoaDon }}
+            </button>
+          </a-tooltip>
+        </div>
+
+        <!-- Nút tạo hóa đơn mới -->
+        <a-tooltip
+          :title="openInvoices.length >= MAX_OPEN_INVOICES ? 'Chỉ được mở tối đa 5 hóa đơn chờ' : 'Tạo hóa đơn mới'"
+          placement="bottom"
+        >
+          <button
+            class="invoice-tab-add"
+            :disabled="openInvoices.length >= MAX_OPEN_INVOICES || loadingTaoHD"
+            @click="onTaoHoaDon"
+          >
+            <span v-if="loadingTaoHD">...</span>
+            <span v-else>+</span>
+          </button>
+        </a-tooltip>
+      </div>
+
+      <!-- Empty state: chưa có hóa đơn nào -->
+      <div v-if="!activeHoaDon" class="invoice-empty">
+        <a-empty description="Chưa có hóa đơn">
+          <a-button type="primary" :loading="loadingTaoHD" @click="onTaoHoaDon">
+            + Tạo hóa đơn
+          </a-button>
+        </a-empty>
+      </div>
+
+      <!-- Hóa đơn đang active -->
+      <template v-else>
+        <!-- Header hóa đơn -->
+        <div class="invoice-header">
+          <div class="invoice-meta">
+            <a-tooltip :title="activeHoaDon.maHoaDon" placement="bottom">
+              <span class="invoice-code">{{ activeHoaDon.maHoaDon }}</span>
+            </a-tooltip>
+            <a-tag v-if="isDaThanhToan" color="success">Đã thanh toán</a-tag>
+            <a-tag v-else color="processing">Đang xử lý</a-tag>
+          </div>
+          <a-button
+            v-if="!isDaThanhToan"
+            type="text"
+            size="small"
+            danger
+            @click="onHuyHoaDon"
+          >
+            Hủy
+          </a-button>
+        </div>
+
+        <!-- Khách hàng -->
+        <div class="pos-customer-section">
+          <div class="customer-header">
+            <span class="customer-label">👤 Khách hàng</span>
+          </div>
+          <div class="customer-row">
+            <template v-if="!activeHoaDon.idKhachHang">
+              <span class="customer-empty-text">Khách lẻ</span>
+              <a-button type="link" size="small" @click="customerModalOpen = true" :disabled="isDaThanhToan || loadingCustomer" style="padding: 0 4px">Chọn</a-button>
+            </template>
+            <template v-else>
+              <div class="customer-info">
+                <span class="customer-name">{{ activeHoaDon.tenKhachHang || `Khách hàng #${activeHoaDon.idKhachHang}` }}</span>
+                <template v-if="activeHoaDon.sdtKhachHang">
+                  <span class="customer-sep">·</span>
+                  <span class="customer-phone">{{ activeHoaDon.sdtKhachHang }}</span>
+                </template>
+              </div>
+              <div class="customer-actions">
+                <a-button type="text" size="small" @click="onRemoveCustomer" :disabled="isDaThanhToan || loadingCustomer" class="btn-khach-le">Khách lẻ</a-button>
+                <a-button type="link" size="small" @click="customerModalOpen = true" :disabled="isDaThanhToan || loadingCustomer" style="padding: 0 4px">Đổi</a-button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Voucher -->
+        <div class="pos-voucher-section">
+          <div class="voucher-header">
+            <span class="voucher-label">🏷 Voucher</span>
+          </div>
+          <div class="voucher-row">
+            <template v-if="!activeHoaDon.idVoucher">
+              <span class="voucher-empty-text">Chưa áp dụng</span>
+              <a-button
+                type="link"
+                size="small"
+                @click="voucherModalOpen = true"
+                :disabled="isDaThanhToan || loadingVoucher || !activeHoaDon.chiTiet?.length"
+                style="padding: 0 4px"
+              >
+                Chọn
+              </a-button>
+            </template>
+            <template v-else>
+              <div class="voucher-info">
+                <span class="voucher-code">{{ activeHoaDon.maVoucher }}</span>
+                <span class="voucher-sep" v-if="activeHoaDon.tenVoucher">·</span>
+                <span class="voucher-name" v-if="activeHoaDon.tenVoucher">{{ activeHoaDon.tenVoucher }}</span>
+                <div class="voucher-discount" v-if="activeHoaDon.giamGia">Giảm {{ formatVND(activeHoaDon.giamGia) }}</div>
+              </div>
+              <div class="voucher-actions">
+                <a-button
+                  type="text"
+                  size="small"
+                  danger
+                  @click="onRemoveVoucher"
+                  :disabled="isDaThanhToan || loadingVoucher"
+                  class="btn-remove-voucher"
+                >
+                  Bỏ
+                </a-button>
+                <!-- Nút đổi voucher: mở lại modal, không gọi boVoucher -->
+                <a-button
+                  type="link"
+                  size="small"
+                  @click="voucherModalOpen = true"
+                  :disabled="isDaThanhToan || loadingVoucher"
+                  class="btn-remove-voucher"
+                >
+                  Đổi
+                </a-button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Danh sách chi tiết -->
+        <div class="invoice-items">
+          <a-empty
+            v-if="(activeHoaDon.chiTiet?.length ?? 0) === 0"
+            description="Chưa có món nào"
+            :image-style="{ height: '40px' }"
+          />
+
+          <div
+            v-for="ct in (activeHoaDon.chiTiet ?? [])"
+            :key="ct.idHoaDonChiTiet"
+            class="invoice-item"
+          >
+            <!-- Hàng 1: Tên sản phẩm + thành tiền -->
+            <div class="item-row1">
+              <span class="item-name">{{ ct.tenSanPham || `SP #${ct.idSanPham}` }}</span>
+              <span class="item-price">{{ formatVND(ct.thanhTien) }}</span>
+            </div>
+
+            <!-- Hàng 2: Size tag · đưᤁng · đá (chỉ hiển thị khi có giá trị) -->
+            <div class="item-row2">
+              <a-tag size="small" color="blue" style="font-size:10px; margin:0">
+                {{ ct.tenSize || `Size #${ct.idSize}` }}
+              </a-tag>
+              <template v-if="ct.mucDuong != null">
+                <span class="item-row2-sep">·</span>
+                <span class="item-row2-opt">{{ formatDuong(ct.mucDuong) }}</span>
+              </template>
+              <template v-if="ct.mucDa != null">
+                <span class="item-row2-sep">·</span>
+                <span class="item-row2-opt">{{ formatDa(ct.mucDa) }}</span>
+              </template>
+              <span class="item-unit-price" style="margin-left:auto">{{ formatVND(ct.donGia) }}/món</span>
+            </div>
+
+            <!-- Hàng 2b: Ghi chú (nếu có) -->
+            <div v-if="ct.ghiChu" class="item-note">
+              📝 {{ ct.ghiChu }}
+            </div>
+
+            <!-- Hàng 3: Tăng giảm số lượng + nút -->
+            <div class="item-actions">
+              <div class="item-qty">
+                <a-button
+                  size="small"
+                  :disabled="isDaThanhToan || ct.soLuong <= 1 || loadingCtId === ct.idHoaDonChiTiet"
+                  @click="onGiamSoLuong(ct)"
+                >−</a-button>
+                <span class="qty-val">{{ ct.soLuong }}</span>
+                <a-button
+                  size="small"
+                  :disabled="isDaThanhToan || loadingCtId === ct.idHoaDonChiTiet"
+                  @click="onTangSoLuong(ct)"
+                >+</a-button>
+              </div>
+
+              <div class="item-btns">
+                <a-button
+                  type="text"
+                  size="small"
+                  :disabled="isDaThanhToan"
+                  @click="openToppingModal(ct.idHoaDonChiTiet)"
+                  style="color: #1677ff; padding: 0 6px"
+                >
+                  + Topping
+                </a-button>
+                <a-button
+                  type="text"
+                  size="small"
+                  danger
+                  :disabled="isDaThanhToan || loadingCtId === ct.idHoaDonChiTiet"
+                  @click="onXoaChiTiet(ct)"
+                  style="padding: 0 6px"
+                >
+                  Xóa
+                </a-button>
+              </div>
+            </div>
+
+            <!-- Hàng 4: Topping list -->
+            <div v-if="ct.toppingList && ct.toppingList.length > 0" class="topping-tags">
+              <div
+                v-for="tp in ct.toppingList"
+                :key="tp.idHdctTopping"
+                class="topping-tag-row"
+              >
+                <!-- tenTopping chưa có trong HdctTopping response → fallback Topping #id -->
+                <span class="topping-tag-name">• {{ tp.tenTopping ?? `Topping #${tp.idTopping}` }} × {{ tp.soLuong }}</span>
+                <span class="topping-tag-price">{{ formatVND(tp.thanhTien) }}</span>
+                <a-button
+                  v-if="!isDaThanhToan"
+                  type="text"
+                  size="small"
+                  danger
+                  style="padding: 0 4px; height: 20px; font-size: 11px"
+                  @click="onXoaTopping(ct, tp)"
+                >✕</a-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <a-divider style="margin: 8px 0" />
+
+        <!-- Tổng tiền -->
+        <div class="invoice-summary">
+          <div class="summary-row">
+            <span class="summary-label">Tạm tính</span>
+            <span class="summary-value">{{ formatVND(activeHoaDon.tongTien) }}</span>
+          </div>
+          <div class="summary-row" v-if="(activeHoaDon.giamGia ?? 0) > 0">
+            <span class="summary-label">Giảm giá</span>
+            <span class="summary-value discount-value">-{{ formatVND(activeHoaDon.giamGia!) }}</span>
+          </div>
+          <div class="summary-row" v-if="(activeHoaDon.phiVanChuyen ?? 0) > 0">
+            <span class="summary-label">Phí vận chuyển</span>
+            <span class="summary-value">{{ formatVND(activeHoaDon.phiVanChuyen!) }}</span>
+          </div>
+          <div class="summary-row total-row">
+            <span class="summary-label">Thành tiền</span>
+            <span class="total-amount">{{ formatVND(activeHoaDon.thanhTien ?? activeHoaDon.tongTien) }}</span>
+          </div>
+        </div>
+
+        <!-- Nút thanh toán -->
+        <div class="invoice-footer">
+          <a-button
+            type="primary"
+            block
+            size="large"
+            :disabled="isDaThanhToan || (activeHoaDon.chiTiet?.length ?? 0) === 0"
+            :loading="loadingThanhToan"
+            @click="onThanhToan"
+          >
+            <template v-if="isDaThanhToan">✓ Đã thanh toán</template>
+            <template v-else>Thanh toán tiền mặt</template>
+          </a-button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Modal chọn size -->
+  <SizePickerModal
+    :open="sizeModalOpen"
+    :san-pham="selectedSanPham"
+    @close="sizeModalOpen = false"
+    @confirm="onSizeConfirm"
+  />
+
+  <!-- Modal chọn topping -->
+  <ToppingPickerModal
+    :open="toppingModalOpen"
+    :id-chi-tiet="selectedChiTietId"
+    @close="toppingModalOpen = false"
+    @confirm="onToppingConfirm"
+  />
+
+  <!-- Modal chọn khách hàng -->
+  <CustomerPickerModal
+    :open="customerModalOpen"
+    @close="customerModalOpen = false"
+    @select="onCustomerSelect"
+  />
+
+  <!-- Modal áp dụng voucher -->
+  <VoucherPickerModal
+    :open="voucherModalOpen"
+    :loading="loadingVoucher"
+    :id-hoa-don="activeHoaDon?.idHoaDon"
+    :current-voucher-code="activeHoaDon?.maVoucher"
+    @close="voucherModalOpen = false"
+    @apply="onApplyVoucher"
+  />
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from "vue";
+import { message, Modal } from "ant-design-vue";
+import { useAuthStore } from "@/modules/auth/store/authStore";
+
+import SizePickerModal from "../components/SizePickerModal.vue";
+import ToppingPickerModal from "../components/ToppingPickerModal.vue";
+import CustomerPickerModal from "../components/CustomerPickerModal.vue";
+import VoucherPickerModal from "../components/VoucherPickerModal.vue";
+
+import {
+  getSanPham,
+  taoHoaDon,
+  getHoaDonById,
+  themChiTiet,
+  capNhatSoLuong,
+  xoaChiTiet,
+  themToppingChiTiet,
+  xoaTopping,
+  thanhToan,
+  huyHoaDon,
+  capNhatKhachHangHoaDon,
+  apDungVoucher,
+  boVoucher,
+} from "../api/posApi";
+
+import type { SanPham, SanPhamSize, HoaDon, ChiTietHoaDon, HdctTopping, KhachHang } from "../types/pos";
+
+// ============================================================
+// Auth
+// ============================================================
+const authStore = useAuthStore();
+
+// ============================================================
+// Constant
+// ============================================================
+const MAX_OPEN_INVOICES = 5;
+
+// ============================================================
+// Session storage keys
+// ============================================================
+const SS_IDS_KEY = "pos_open_invoice_ids";
+const SS_ACTIVE_KEY = "pos_active_invoice_id";
+
+// ============================================================
+// State: Sản phẩm
+// ============================================================
+const dsSanPham = ref<SanPham[]>([]);
+const loadingSanPham = ref(false);
+const keyword = ref("");
+const currentPage = ref(1);
+const pageSize = ref(12);
+const total = ref(0);
+
+// ============================================================
+// State: Danh sách hóa đơn đang mở (tối đa MAX_OPEN_INVOICES)
+// ============================================================
+const openInvoices = ref<HoaDon[]>([]);
+const activeInvoiceId = ref<number | null>(null);
+const loadingTaoHD = ref(false);
+const loadingThanhToan = ref(false);
+const loadingCtId = ref<number | null>(null); // chi tiết đang cập nhật
+
+// ============================================================
+// State: Modals
+// ============================================================
+const sizeModalOpen = ref(false);
+const selectedSanPham = ref<SanPham | null>(null);
+
+const toppingModalOpen = ref(false);
+const selectedChiTietId = ref<number | null>(null);
+
+// ============================================================
+// Computed: hóa đơn đang active
+// ============================================================
+const activeHoaDon = computed<HoaDon | null>(() => {
+  if (activeInvoiceId.value === null) return null;
+  return openInvoices.value.find((hd) => hd.idHoaDon === activeInvoiceId.value) ?? null;
+});
+
+const isDaThanhToan = computed(
+  () => activeHoaDon.value?.trangThai === "DA_THANH_TOAN"
+);
+
+// ============================================================
+// Session storage helpers
+// ============================================================
+const saveToSession = () => {
+  const ids = openInvoices.value.map((hd) => hd.idHoaDon);
+  sessionStorage.setItem(SS_IDS_KEY, JSON.stringify(ids));
+  if (activeInvoiceId.value !== null) {
+    sessionStorage.setItem(SS_ACTIVE_KEY, String(activeInvoiceId.value));
+  } else {
+    sessionStorage.removeItem(SS_ACTIVE_KEY);
+  }
+};
+
+const clearInvoiceFromSession = (idHoaDon: number) => {
+  const ids: number[] = JSON.parse(sessionStorage.getItem(SS_IDS_KEY) ?? "[]");
+  const next = ids.filter((id) => id !== idHoaDon);
+  sessionStorage.setItem(SS_IDS_KEY, JSON.stringify(next));
+  if (sessionStorage.getItem(SS_ACTIVE_KEY) === String(idHoaDon)) {
+    sessionStorage.removeItem(SS_ACTIVE_KEY);
+  }
+};
+
+// ============================================================
+// Chuyển active invoice
+// ============================================================
+const switchInvoice = (idHoaDon: number) => {
+  activeInvoiceId.value = idHoaDon;
+  sessionStorage.setItem(SS_ACTIVE_KEY, String(idHoaDon));
+};
+
+// ============================================================
+// Thay thế đúng một hóa đơn trong danh sách (không đụng cái khác)
+// ============================================================
+const replaceInvoice = (updated: HoaDon) => {
+  const idx = openInvoices.value.findIndex((hd) => hd.idHoaDon === updated.idHoaDon);
+  if (idx !== -1) {
+    openInvoices.value[idx] = updated;
+  }
+};
+
+// ============================================================
+// Load sản phẩm
+// ============================================================
+const loadSanPham = async () => {
+  loadingSanPham.value = true;
+  try {
+    const res = await getSanPham(
+      currentPage.value - 1,
+      pageSize.value,
+      "idSanPham",
+      "asc",
+      keyword.value
+    );
+    const data = res.data?.data;
+    dsSanPham.value = data?.content ?? [];
+    total.value = data?.totalElements ?? 0;
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Không thể tải danh sách sản phẩm");
+  } finally {
+    loadingSanPham.value = false;
+  }
+};
+
+const onSearch = () => {
+  currentPage.value = 1;
+  loadSanPham();
+};
+
+const onPageChange = (page: number) => {
+  currentPage.value = page;
+  loadSanPham();
+};
+
+// ============================================================
+// Click sản phẩm → mở modal size
+// ============================================================
+const onClickSanPham = (sp: SanPham) => {
+  if (!activeHoaDon.value) {
+    message.warning("Vui lòng tạo hóa đơn trước khi thêm món");
+    return;
+  }
+  if (isDaThanhToan.value) return;
+  selectedSanPham.value = sp;
+  sizeModalOpen.value = true;
+};
+
+// ============================================================
+// Xác nhận size → thêm chi tiết vào hóa đơn active
+// ============================================================
+const onSizeConfirm = async (payload: {
+  sanPham: SanPham;
+  size: SanPhamSize;
+  mucDuong: number;
+  mucDa: number;
+  ghiChu: string | null;
+}) => {
+  if (!activeHoaDon.value) return;
+  sizeModalOpen.value = false;
+
+  try {
+    const res = await themChiTiet(activeHoaDon.value.idHoaDon, {
+      idSanPham: payload.sanPham.idSanPham,
+      idSize:    payload.size.idSize,
+      soLuong:   1,
+      mucDuong:  payload.mucDuong,
+      mucDa:     payload.mucDa,
+      ghiChu:    payload.ghiChu,
+    });
+    replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
+    message.success("Đã thêm món vào hóa đơn");
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Thêm món thất bại");
+  }
+};
+
+// ============================================================
+// Tạo hóa đơn mới
+// ============================================================
+const onTaoHoaDon = async () => {
+  if (openInvoices.value.length >= MAX_OPEN_INVOICES) {
+    message.warning("Chỉ được mở tối đa 5 hóa đơn chờ");
+    return;
+  }
+  loadingTaoHD.value = true;
+  try {
+    const res = await taoHoaDon({
+      idKhachHang: null,
+      idNhanVien: authStore.user?.idNhanVien ?? null,
+      ghiChu: null,
+    });
+    const hd = normalizeHoaDon(res.data?.data ?? res.data);
+    openInvoices.value.push(hd);
+    activeInvoiceId.value = hd.idHoaDon;
+    saveToSession();
+    message.success("Tạo hóa đơn thành công");
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Tạo hóa đơn thất bại");
+  } finally {
+    loadingTaoHD.value = false;
+  }
+};
+
+// ============================================================
+// Hủy hóa đơn
+// ============================================================
+const onHuyHoaDon = () => {
+  if (!activeHoaDon.value) return;
+  const idHoaDon = activeHoaDon.value.idHoaDon;
+
+  Modal.confirm({
+    title: "Bạn có chắc muốn hủy hóa đơn này?",
+    okText: "Đồng ý",
+    cancelText: "Hủy",
+    onOk: async () => {
+      try {
+        await huyHoaDon(idHoaDon);
+        
+        // Cập nhật FE sau khi backend thành công
+        const removedIdx = openInvoices.value.findIndex((hd) => hd.idHoaDon === idHoaDon);
+        openInvoices.value = openInvoices.value.filter((hd) => hd.idHoaDon !== idHoaDon);
+        clearInvoiceFromSession(idHoaDon);
+
+        if (openInvoices.value.length === 0) {
+          activeInvoiceId.value = null;
+          sessionStorage.removeItem(SS_ACTIVE_KEY);
+        } else {
+          const nextIdx = Math.min(removedIdx, openInvoices.value.length - 1);
+          activeInvoiceId.value = openInvoices.value[nextIdx].idHoaDon;
+          sessionStorage.setItem(SS_ACTIVE_KEY, String(activeInvoiceId.value));
+        }
+
+        message.success("Hủy hóa đơn thành công");
+      } catch (err: any) {
+        message.error(err.response?.data?.message || "Hủy hóa đơn thất bại");
+      }
+    },
+  });
+};
+
+// ============================================================
+// Tăng/giảm số lượng
+// ============================================================
+const onTangSoLuong = async (ct: ChiTietHoaDon) => {
+  if (!activeHoaDon.value) return;
+  loadingCtId.value = ct.idHoaDonChiTiet;
+  try {
+    const res = await capNhatSoLuong(ct.idHoaDonChiTiet, {
+      soLuong: ct.soLuong + 1,
+    });
+    replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Cập nhật số lượng thất bại");
+  } finally {
+    loadingCtId.value = null;
+  }
+};
+
+const onGiamSoLuong = async (ct: ChiTietHoaDon) => {
+  if (!activeHoaDon.value || ct.soLuong <= 1) return;
+  loadingCtId.value = ct.idHoaDonChiTiet;
+  try {
+    const res = await capNhatSoLuong(ct.idHoaDonChiTiet, {
+      soLuong: ct.soLuong - 1,
+    });
+    replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Cập nhật số lượng thất bại");
+  } finally {
+    loadingCtId.value = null;
+  }
+};
+
+// ============================================================
+// Xóa chi tiết
+// ============================================================
+const onXoaChiTiet = async (ct: ChiTietHoaDon) => {
+  if (!activeHoaDon.value) return;
+  loadingCtId.value = ct.idHoaDonChiTiet;
+  try {
+    const res = await xoaChiTiet(ct.idHoaDonChiTiet);
+    replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
+    message.success("Đã xóa món");
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Xóa món thất bại");
+  } finally {
+    loadingCtId.value = null;
+  }
+};
+
+// ============================================================
+// Khách hàng
+// ============================================================
+const customerModalOpen = ref(false);
+const loadingCustomer = ref(false);
+
+const onCustomerSelect = async (kh: KhachHang) => {
+  if (!activeHoaDon.value) return;
+  loadingCustomer.value = true;
+  try {
+    const res = await capNhatKhachHangHoaDon(activeHoaDon.value.idHoaDon, kh.idKhachHang);
+    replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
+    message.success("Đã chọn khách hàng");
+    customerModalOpen.value = false;
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Chọn khách hàng thất bại");
+  } finally {
+    loadingCustomer.value = false;
+  }
+};
+
+const onRemoveCustomer = async () => {
+  if (!activeHoaDon.value || !activeHoaDon.value.idKhachHang) return;
+  loadingCustomer.value = true;
+  try {
+    const res = await capNhatKhachHangHoaDon(activeHoaDon.value.idHoaDon, null);
+    replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
+    message.success("Đã chuyển về khách lẻ");
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Đổi khách lẻ thất bại");
+  } finally {
+    loadingCustomer.value = false;
+  }
+};
+
+// ============================================================
+// Voucher
+// ============================================================
+const voucherModalOpen = ref(false);
+const loadingVoucher = ref(false);
+
+const onApplyVoucher = async (payload: { maVoucher: string }) => {
+  if (!activeHoaDon.value) return;
+
+  loadingVoucher.value = true;
+  try {
+    const res = await apDungVoucher(
+      activeHoaDon.value.idHoaDon,
+      { maVoucher: payload.maVoucher }
+    );
+
+    replaceInvoice(
+      normalizeHoaDon(res.data?.data ?? res.data)
+    );
+
+    voucherModalOpen.value = false;
+    message.success("Áp dụng voucher thành công");
+  } catch (err: any) {
+    message.error(
+      err.response?.data?.message ||
+      "Áp dụng voucher thất bại"
+    );
+  } finally {
+    loadingVoucher.value = false;
+  }
+};
+
+const onRemoveVoucher = async () => {
+  if (!activeHoaDon.value) return;
+
+  loadingVoucher.value = true;
+  try {
+    const res = await boVoucher(
+      activeHoaDon.value.idHoaDon
+    );
+
+    replaceInvoice(
+      normalizeHoaDon(res.data?.data ?? res.data)
+    );
+
+    message.success("Đã bỏ voucher");
+  } catch (err: any) {
+    message.error(
+      err.response?.data?.message ||
+      "Bỏ voucher thất bại"
+    );
+  } finally {
+    loadingVoucher.value = false;
+  }
+};
+
+// ============================================================
+// Modal Topping
+// ============================================================
+const openToppingModal = (idChiTiet: number) => {
+  selectedChiTietId.value = idChiTiet;
+  toppingModalOpen.value = true;
+};
+
+const onToppingConfirm = async (
+  selected: { idTopping: number; soLuong: number; donGia: number }[]
+) => {
+  if (!selectedChiTietId.value) return;
+  toppingModalOpen.value = false;
+
+  // Gọi tuần tự từng topping được chọn
+  let lastResponse: HoaDon | null = null;
+  for (const tp of selected) {
+    try {
+      const res = await themToppingChiTiet(selectedChiTietId.value, {
+        idTopping: tp.idTopping,
+        soLuong: tp.soLuong,
+        donGia: tp.donGia,
+      });
+      lastResponse = normalizeHoaDon(res.data?.data ?? res.data);
+    } catch (err: any) {
+      message.error(
+        err.response?.data?.message || `Thêm topping #${tp.idTopping} thất bại`
+      );
+    }
+  }
+
+  if (lastResponse) {
+    replaceInvoice(lastResponse);
+    message.success("Đã cập nhật topping");
+  }
+};
+
+const onXoaTopping = async (ct: ChiTietHoaDon, tp: HdctTopping) => {
+  try {
+    const res = await xoaTopping(tp.idHdctTopping);
+    replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
+    message.success("Đã xóa topping");
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Xóa topping thất bại");
+  }
+};
+
+// ============================================================
+// Thanh toán
+// ============================================================
+const onThanhToan = async () => {
+  if (!activeHoaDon.value) return;
+  const idHoaDon = activeHoaDon.value.idHoaDon;
+  const removedIdx = openInvoices.value.findIndex((hd) => hd.idHoaDon === idHoaDon);
+
+  loadingThanhToan.value = true;
+  try {
+    await thanhToan(idHoaDon, { hinhThucThanhToan: "TIEN_MAT" });
+
+    // Chỉ reset state SAU KHI backend xác nhận thành công (200)
+    // Hóa đơn DA_THANH_TOAN vẫn tồn tại trong DB, chỉ clear khỏi POS
+    openInvoices.value = openInvoices.value.filter((hd) => hd.idHoaDon !== idHoaDon);
+    clearInvoiceFromSession(idHoaDon);
+
+    // Chọn hóa đơn kế tiếp hoặc set null
+    if (openInvoices.value.length === 0) {
+      activeInvoiceId.value = null;
+      sessionStorage.removeItem(SS_ACTIVE_KEY);
+    } else {
+      const nextIdx = Math.min(removedIdx, openInvoices.value.length - 1);
+      activeInvoiceId.value = openInvoices.value[nextIdx].idHoaDon;
+      sessionStorage.setItem(SS_ACTIVE_KEY, String(activeInvoiceId.value));
+    }
+
+    message.success("Thanh toán hóa đơn thành công");
+  } catch (err: any) {
+    // Nếu backend báo lỗi (thiếu kho/topping/BTP):
+    // giữ nguyên tab, giữ toàn bộ món, giữ sessionStorage
+    message.error(err.response?.data?.message || "Thanh toán thất bại");
+  } finally {
+    loadingThanhToan.value = false;
+  }
+};
+
+// ============================================================
+// Helper: normalize response HoaDon từ backend
+// Backend dùng field `chiTiet` (không phải `chiTietList`)
+// ============================================================
+const normalizeHoaDon = (raw: any): HoaDon => ({
+  ...raw,
+  chiTiet: raw?.chiTiet ?? [],
+});
+
+// ============================================================
+// Helper: format mức đường
+// ============================================================
+const formatDuong = (val: number | null | undefined): string => {
+  if (val == null) return "";
+  if (val === 0) return "Không đường";
+  return `Đường ${val}%`;
+};
+
+// ============================================================
+// Helper: format mức đá
+// ============================================================
+const formatDa = (val: number | null | undefined): string => {
+  if (val == null) return "";
+  if (val === 0) return "Không đá";
+  return `Đá ${val}%`;
+};
+
+const formatVND = (val: number) =>
+  (val ?? 0).toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+
+// ============================================================
+// Restore hóa đơn từ sessionStorage khi F5
+// ============================================================
+const restoreHoaDon = async () => {
+  const raw = sessionStorage.getItem(SS_IDS_KEY);
+  if (!raw) return;
+
+  let savedIds: number[] = [];
+  try {
+    savedIds = JSON.parse(raw);
+  } catch {
+    sessionStorage.removeItem(SS_IDS_KEY);
+    return;
+  }
+
+  // Tối đa MAX_OPEN_INVOICES
+  savedIds = savedIds.slice(0, MAX_OPEN_INVOICES);
+
+  const restored: HoaDon[] = [];
+  for (const id of savedIds) {
+    try {
+      const res = await getHoaDonById(id);
+      const hdRaw = res.data?.data ?? res.data;
+      if (hdRaw?.trangThai === "CHO_THANH_TOAN") {
+        restored.push(normalizeHoaDon(hdRaw));
+      }
+      // Nếu đã thanh toán/hủy/404 → bỏ qua
+    } catch {
+      // 404 hoặc lỗi mạng → bỏ qua, không hiển thị lỗi
+    }
+  }
+
+  openInvoices.value = restored;
+
+  // Cập nhật lại session với các ID còn hợp lệ
+  const validIds = restored.map((hd) => hd.idHoaDon);
+  sessionStorage.setItem(SS_IDS_KEY, JSON.stringify(validIds));
+
+  // Restore active id
+  const savedActive = sessionStorage.getItem(SS_ACTIVE_KEY);
+  const savedActiveId = savedActive ? Number(savedActive) : null;
+
+  if (savedActiveId !== null && validIds.includes(savedActiveId)) {
+    activeInvoiceId.value = savedActiveId;
+  } else if (restored.length > 0) {
+    activeInvoiceId.value = restored[0].idHoaDon;
+    sessionStorage.setItem(SS_ACTIVE_KEY, String(activeInvoiceId.value));
+  } else {
+    activeInvoiceId.value = null;
+    sessionStorage.removeItem(SS_ACTIVE_KEY);
+  }
+};
+
+// ============================================================
+// Init
+// ============================================================
+onMounted(() => {
+  loadSanPham();
+  restoreHoaDon();
+});
+</script>
+
+<style scoped>
+/* ============================================================
+   WRAPPER: Grid 2 cột cố định — dùng grid thay flex để
+   column width KHÔNG bị content/tab-bar làm thay đổi.
+   minmax(0, Xfr) đảm bảo mỗi cột không vượt quá tỷ lệ
+   kể cả khi nội dung bên trong overflow.
+   ============================================================ */
+.pos-wrapper {
+  display: grid;
+  grid-template-columns: minmax(0, 62fr) minmax(340px, 38fr);
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+  /* Ngăn wrapper tự giãn theo content con */
+  overflow: hidden;
+}
+
+/* ============================================================
+   PHẦN TRÁI
+   Dùng flex-column để: header (fixed) + scroll-area (flex:1) + pagination (fixed)
+   ============================================================ */
+.pos-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pos-left-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.pos-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #262626;
+}
+
+/*
+  product-scroll-area: chiếm toàn bộ không gian còn lại giữa header và pagination.
+  Đây là vùng duy nhất có scroll — card sản phẩm scroll bên trong vùng này.
+  Pagination KHÔNG nằm trong vùng này nên không bị kéo lên khi ít card.
+*/
+.product-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* a-spin cần fill toàn bộ scroll-area */
+.product-spin {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Grid sản phẩm: không cần overflow (đã handle ở scroll-area) */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding-bottom: 4px;
+}
+
+.product-card {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #fff;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:hover {
+  box-shadow: 0 2px 8px rgba(22, 119, 255, 0.15);
+  border-color: #1677ff;
+}
+
+.product-img-wrap {
+  width: 100%;
+  aspect-ratio: 1;
+  background: #f5f5f5;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.product-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.product-img-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: #bfbfbf;
+}
+
+.product-info {
+  padding: 6px 8px 8px;
+}
+
+.product-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #262626;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.product-price {
+  font-size: 12px;
+  color: #1677ff;
+  font-weight: 600;
+}
+
+/* Empty products: fill vùng scroll-area, center content */
+.empty-products {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+/*
+  Pagination: flex-shrink:0 + nằm sau scroll-area trong flex-column
+  → luôn dính đáy panel trái, không bị kéo lên khi ít sản phẩm
+*/
+.pos-pagination {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+/* ============================================================
+   PHẦN PHẢI: Hóa đơn
+   height: 100% kết hợp với grid cell để panel không bị
+   thay đổi kích thước khi tab bar thay đổi nội dung.
+   ============================================================ */
+.pos-right {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+/*
+  Tab bar: flex-shrink:0 + flex-wrap:nowrap để không xuống dòng.
+  overflow-x:auto cho phép scroll ngang khi nhiều tab.
+  KHÔNG dùng overflow:visible để tránh làm giãn panel.
+*/
+.invoice-tab-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px 0;
+  flex-shrink: 0;
+  border-bottom: 1px solid #f0f0f0;
+  overflow-x: auto;
+  /* Ẩn scrollbar trên các trình duyệt hỗ trợ nhưng vẫn scroll được */
+  scrollbar-width: thin;
+  scrollbar-color: #d9d9d9 transparent;
+}
+
+.invoice-tab-bar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.invoice-tab-bar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.invoice-tab-bar::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
+  border-radius: 2px;
+}
+
+.invoice-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  /* Không dùng flex:1 + min-width:0 ở đây vì tab add cần sticky cuối */
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.invoice-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid #d9d9d9;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: #fafafa;
+  color: #595959;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  /* Giới hạn width mỗi tab để không chiếm quá nhiều */
+  max-width: 110px;
+  min-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  line-height: 1.5;
+  font-family: inherit;
+  outline: none;
+}
+
+.invoice-tab:hover {
+  background: #e6f4ff;
+  border-color: #91caff;
+  color: #1677ff;
+}
+
+.invoice-tab.active {
+  background: #fff;
+  border-color: #1677ff;
+  color: #1677ff;
+  font-weight: 600;
+  position: relative;
+  box-shadow: 0 2px 0 #fff;
+}
+
+/* Nút + luôn sticky cuối tab bar, không shrink */
+.invoice-tab-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 4px;
+  background: transparent;
+  color: #8c8c8c;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-family: inherit;
+  outline: none;
+}
+
+.invoice-tab-add:hover:not(:disabled) {
+  background: #e6f4ff;
+  border-color: #1677ff;
+  color: #1677ff;
+}
+
+.invoice-tab-add:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Empty state */
+.invoice-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Header hóa đơn */
+.invoice-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 0;
+  flex-shrink: 0;
+}
+
+.invoice-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* invoice-code: truncate khi quá dài, tooltip hiện full */
+.invoice-code {
+  font-size: 13px;
+  font-weight: 700;
+  color: #262626;
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+/* Khách hàng */
+.pos-customer-section {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  border-top: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-top: 8px;
+}
+
+.customer-header {
+  display: flex;
+  align-items: center;
+}
+
+.customer-label {
+  font-size: 11px;
+  color: #8c8c8c;
+}
+
+.customer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 24px;
+}
+
+.customer-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.customer-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #262626;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customer-sep {
+  color: #bfbfbf;
+  font-size: 12px;
+}
+
+.customer-phone {
+  font-size: 13px;
+  color: #262626;
+}
+
+.customer-empty-text {
+  font-size: 13px;
+  color: #595959;
+}
+
+.customer-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.btn-khach-le {
+  color: #8c8c8c;
+  font-size: 11px;
+  padding: 0 4px;
+}
+
+/* Voucher */
+.pos-voucher-section {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.voucher-header {
+  display: flex;
+  align-items: center;
+}
+
+.voucher-label {
+  font-size: 11px;
+  color: #8c8c8c;
+}
+
+.voucher-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  min-height: 24px;
+}
+
+.voucher-empty-text {
+  font-size: 13px;
+  color: #595959;
+}
+
+.voucher-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.voucher-code {
+  font-size: 13px;
+  font-weight: 600;
+  color: #262626;
+  display: inline-block;
+}
+
+.voucher-sep {
+  color: #bfbfbf;
+  font-size: 12px;
+  margin: 0 4px;
+  display: inline-block;
+}
+
+.voucher-name {
+  font-size: 13px;
+  color: #8c8c8c;
+  display: inline-block;
+}
+
+.voucher-discount {
+  font-size: 12px;
+  color: #52c41a;
+  margin-top: 2px;
+}
+
+.voucher-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-remove-voucher {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+/* Danh sách chi tiết: flex:1 + min-height:0 để scroll trong panel */
+.invoice-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 14px;
+  min-height: 0;
+}
+
+.invoice-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.invoice-item:last-child {
+  border-bottom: none;
+}
+
+/* Hàng 1: tên sản phẩm (trái) + thành tiền (phải) */
+.item-row1 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #262626;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.item-price {
+  font-size: 13px;
+  font-weight: 600;
+  color: #262626;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Hàng 2: size tag · đường · đá · đơn giá */
+.item-row2 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* Dấu phân cách · giữa các option */
+.item-row2-sep {
+  font-size: 10px;
+  color: #bfbfbf;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* Text đường/đá: nhỏ, secondary, không nổi */
+.item-row2-opt {
+  font-size: 11px;
+  color: #8c8c8c;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.item-unit-price {
+  font-size: 11px;
+  color: #8c8c8c;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Ghi chú: dòng nhỏ italic */
+.item-note {
+  font-size: 11px;
+  color: #8c8c8c;
+  font-style: italic;
+  padding-left: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hàng 3: qty controls + nút hành động */
+.item-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 1px;
+}
+
+.item-qty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.qty-val {
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 22px;
+  text-align: center;
+}
+
+.item-btns {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+/* Hàng 4: Topping list — indent nhẹ */
+.topping-tags {
+  margin-top: 3px;
+  padding-left: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.topping-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #8c8c8c;
+  padding-left: 4px;
+  border-left: 2px solid #f0f0f0;
+}
+
+.topping-tag-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topping-tag-price {
+  color: #8c8c8c;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Tổng tiền: flex-shrink:0 → luôn cố định phía dưới panel */
+.invoice-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  flex-shrink: 0;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #595959;
+}
+
+.total-row {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed #d9d9d9;
+}
+
+.total-row .summary-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.discount-value {
+  color: #ff4d4f;
+}
+
+.total-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: #262626;
+}
+
+/* Footer thanh toán: flex-shrink:0 → không bị đẩy bởi invoice-items */
+.invoice-footer {
+  padding: 0 14px 14px;
+  flex-shrink: 0;
+}
+</style>
