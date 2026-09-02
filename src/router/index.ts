@@ -21,6 +21,10 @@ import NguyenLieuListView from "@/modules/nguyen-lieu/views/NguyenLieuListView.v
 // 👇 THÊM IMPORT MODULE TOPPING Ở ĐÂY 👇
 import ToppingListView from "@/modules/topping/views/ToppingListView.vue";
 import PayOSDemoView from "@/modules/payos/views/PayOSDemoView.vue";
+// 👇 THÊM IMPORT MODULE SẢN PHẨM Ở ĐÂY 👇
+import SanPhamListView from "@/modules/san-pham/views/SanPhamListView.vue";
+// 👇 THÊM IMPORT MODULE BÁN THÀNH PHẨM Ở ĐÂY 👇
+import BanThanhPhamListView from "@/modules/ban-thanh-pham/views/BanThanhPhamListView.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -69,6 +73,13 @@ const router = createRouter({
         // 👇 THÊM ROUTE TOPPING VÀO TRONG APPLAYOUT 👇
         { path: "topping", component: ToppingListView },
 
+        // 👇 THÊM ROUTE SẢN PHẨM VÀO TRONG APPLAYOUT 👇
+        { path: "san-pham", component: SanPhamListView },
+
+        // 👇 THÊM ROUTE BÁN THÀNH PHẨM VÀO TRONG APPLAYOUT 👇
+        // ADMIN + STAFF đều được truy cập
+        { path: "ban-thanh-pham", component: BanThanhPhamListView },
+
         // 👇 ROUTE TEST PHÍ VẬN CHUYỂN GHN 👇
         {
           path: "ghn-test",
@@ -78,6 +89,12 @@ const router = createRouter({
 
         // 👇 ROUTE PAYOS DEMO 👇
         { path: "payos-demo", component: PayOSDemoView },
+
+        // 👇 ROUTE POS BÁN HÀNG TẠI QUẦY 👇
+        {
+          path: "pos",
+          component: () => import("@/modules/pos/views/PosView.vue"),
+        },
 
         // 👇 ROUTE NHẬT KÝ HỆ THỐNG (CHỈ ADMIN) 👇
         {

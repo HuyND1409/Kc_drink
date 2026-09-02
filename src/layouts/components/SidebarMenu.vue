@@ -14,6 +14,10 @@
         Dashboard
       </a-menu-item>
 
+      <a-menu-item key="pos" @click="router.push('/pos')">
+        🛒 Bán hàng tại quầy
+      </a-menu-item>
+
       <a-menu-item key="2" v-if="isAdmin" @click="router.push('/nhan-vien')">
         Nhân viên
       </a-menu-item>
@@ -21,7 +25,7 @@
         Khách hàng
       </a-menu-item>
 
-      <a-menu-item key="4">
+      <a-menu-item key="4" @click="router.push('/san-pham')">
         Sản phẩm
       </a-menu-item>
 
@@ -44,6 +48,9 @@
         </a-menu-item>
         <a-menu-item key="8" @click="router.push('/topping')">
           Quản lý topping
+        </a-menu-item>
+        <a-menu-item key="ban-thanh-pham" @click="router.push('/ban-thanh-pham')">
+          Bán thành phẩm
         </a-menu-item>
       </a-sub-menu>
       <a-menu-item key="payos-demo" @click="router.push('/payos-demo')">
