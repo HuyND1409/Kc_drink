@@ -124,7 +124,7 @@
             <a-tag v-else color="processing">Đang xử lý</a-tag>
           </div>
           <a-button
-            v-if="!isDaThanhToan"
+            v-if="!isHoaDonBiKhoa"
             type="text"
             size="small"
             danger
@@ -142,7 +142,7 @@
           <div class="customer-row">
             <template v-if="!activeHoaDon.idKhachHang">
               <span class="customer-empty-text">Khách lẻ</span>
-              <a-button type="link" size="small" @click="customerModalOpen = true" :disabled="isDaThanhToan || loadingCustomer" style="padding: 0 4px">Chọn</a-button>
+              <a-button type="link" size="small" @click="customerModalOpen = true" :disabled="isHoaDonBiKhoa || loadingCustomer" style="padding: 0 4px">Chọn</a-button>
             </template>
             <template v-else>
               <div class="customer-info">
@@ -153,8 +153,8 @@
                 </template>
               </div>
               <div class="customer-actions">
-                <a-button type="text" size="small" @click="onRemoveCustomer" :disabled="isDaThanhToan || loadingCustomer" class="btn-khach-le">Khách lẻ</a-button>
-                <a-button type="link" size="small" @click="customerModalOpen = true" :disabled="isDaThanhToan || loadingCustomer" style="padding: 0 4px">Đổi</a-button>
+                <a-button type="text" size="small" @click="onRemoveCustomer" :disabled="isHoaDonBiKhoa || loadingCustomer" class="btn-khach-le">Khách lẻ</a-button>
+                <a-button type="link" size="small" @click="customerModalOpen = true" :disabled="isHoaDonBiKhoa || loadingCustomer" style="padding: 0 4px">Đổi</a-button>
               </div>
             </template>
           </div>
@@ -172,7 +172,7 @@
                 type="link"
                 size="small"
                 @click="voucherModalOpen = true"
-                :disabled="isDaThanhToan || loadingVoucher || !activeHoaDon.chiTiet?.length"
+                :disabled="isHoaDonBiKhoa || loadingVoucher || !activeHoaDon.chiTiet?.length"
                 style="padding: 0 4px"
               >
                 Chọn
@@ -191,7 +191,7 @@
                   size="small"
                   danger
                   @click="onRemoveVoucher"
-                  :disabled="isDaThanhToan || loadingVoucher"
+                  :disabled="isHoaDonBiKhoa || loadingVoucher"
                   class="btn-remove-voucher"
                 >
                   Bỏ
@@ -201,7 +201,7 @@
                   type="link"
                   size="small"
                   @click="voucherModalOpen = true"
-                  :disabled="isDaThanhToan || loadingVoucher"
+                  :disabled="isHoaDonBiKhoa || loadingVoucher"
                   class="btn-remove-voucher"
                 >
                   Đổi
@@ -256,13 +256,13 @@
               <div class="item-qty">
                 <a-button
                   size="small"
-                  :disabled="isDaThanhToan || ct.soLuong <= 1 || loadingCtId === ct.idHoaDonChiTiet"
+                  :disabled="isHoaDonBiKhoa || ct.soLuong <= 1 || loadingCtId === ct.idHoaDonChiTiet"
                   @click="onGiamSoLuong(ct)"
                 >−</a-button>
                 <span class="qty-val">{{ ct.soLuong }}</span>
                 <a-button
                   size="small"
-                  :disabled="isDaThanhToan || loadingCtId === ct.idHoaDonChiTiet"
+                  :disabled="isHoaDonBiKhoa || loadingCtId === ct.idHoaDonChiTiet"
                   @click="onTangSoLuong(ct)"
                 >+</a-button>
               </div>
@@ -271,7 +271,7 @@
                 <a-button
                   type="text"
                   size="small"
-                  :disabled="isDaThanhToan"
+                  :disabled="isHoaDonBiKhoa"
                   @click="openToppingModal(ct.idHoaDonChiTiet)"
                   style="color: #1677ff; padding: 0 6px"
                 >
@@ -281,7 +281,7 @@
                   type="text"
                   size="small"
                   danger
-                  :disabled="isDaThanhToan || loadingCtId === ct.idHoaDonChiTiet"
+                  :disabled="isHoaDonBiKhoa || loadingCtId === ct.idHoaDonChiTiet"
                   @click="onXoaChiTiet(ct)"
                   style="padding: 0 6px"
                 >
@@ -301,7 +301,7 @@
                 <span class="topping-tag-name">• {{ tp.tenTopping ?? `Topping #${tp.idTopping}` }} × {{ tp.soLuong }}</span>
                 <span class="topping-tag-price">{{ formatVND(tp.thanhTien) }}</span>
                 <a-button
-                  v-if="!isDaThanhToan"
+                  v-if="!isHoaDonBiKhoa"
                   type="text"
                   size="small"
                   danger
@@ -339,14 +339,26 @@
         <div class="invoice-footer">
           <a-button
             type="primary"
-            block
+            size="large"
+            :disabled="isDaThanhToan || (activeHoaDon.chiTiet?.length ?? 0) === 0 || payOSDangKhoaHoaDon"
+            :loading="loadingThanhToan"
+            @click="onThanhToan"
+            class="btn-thanh-toan"
+          >
+            <template v-if="isDaThanhToan">✓ Đã thanh toán</template>
+            <template v-else>Tiền mặt</template>
+          </a-button>
+          
+          <a-button
+            type="default"
             size="large"
             :disabled="isDaThanhToan || (activeHoaDon.chiTiet?.length ?? 0) === 0"
             :loading="loadingThanhToan"
-            @click="onThanhToan"
+            @click="openPayOSModal"
+            class="btn-qr"
           >
-            <template v-if="isDaThanhToan">✓ Đã thanh toán</template>
-            <template v-else>Thanh toán tiền mặt</template>
+            <template v-if="payOSDangKhoaHoaDon">Xem QR chuyển khoản</template>
+            <template v-else>Chuyển khoản QR</template>
           </a-button>
         </div>
       </template>
@@ -385,17 +397,28 @@
     @close="voucherModalOpen = false"
     @apply="onApplyVoucher"
   />
+
+  <PayOSPaymentModal
+    :open="payosModalOpen"
+    :hoa-don="activeHoaDon"
+    @close="payosModalOpen = false"
+    @created="onPayOSCreated"
+    @paid="onPayOSPaid"
+    @expired="onPayOSExpired"
+    @cancelled="onPayOSCancelled"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { message, Modal } from "ant-design-vue";
+import { message, Modal, notification } from "ant-design-vue";
 import { useAuthStore } from "@/modules/auth/store/authStore";
 
 import SizePickerModal from "../components/SizePickerModal.vue";
 import ToppingPickerModal from "../components/ToppingPickerModal.vue";
 import CustomerPickerModal from "../components/CustomerPickerModal.vue";
 import VoucherPickerModal from "../components/VoucherPickerModal.vue";
+import PayOSPaymentModal from "../components/PayOSPaymentModal.vue";
 
 import {
   getSanPham,
@@ -413,7 +436,7 @@ import {
   boVoucher,
 } from "../api/posApi";
 
-import type { SanPham, SanPhamSize, HoaDon, ChiTietHoaDon, HdctTopping, KhachHang } from "../types/pos";
+import type { SanPham, SanPhamSize, HoaDon, ChiTietHoaDon, HdctTopping, KhachHang, PayOSCreateResponse } from "../types/pos";
 
 // ============================================================
 // Auth
@@ -459,6 +482,8 @@ const selectedSanPham = ref<SanPham | null>(null);
 const toppingModalOpen = ref(false);
 const selectedChiTietId = ref<number | null>(null);
 
+const payosModalOpen = ref(false);
+
 // ============================================================
 // Computed: hóa đơn đang active
 // ============================================================
@@ -469,6 +494,17 @@ const activeHoaDon = computed<HoaDon | null>(() => {
 
 const isDaThanhToan = computed(
   () => activeHoaDon.value?.trangThai === "DA_THANH_TOAN"
+);
+
+const payOSDangKhoaHoaDon = computed(() => {
+  const status = activeHoaDon.value?.payosStatus;
+  return status != null
+    && status !== "CANCELLED"
+    && status !== "EXPIRED";
+});
+
+const isHoaDonBiKhoa = computed(
+  () => isDaThanhToan.value || payOSDangKhoaHoaDon.value
 );
 
 // ============================================================
@@ -552,7 +588,12 @@ const onClickSanPham = (sp: SanPham) => {
     message.warning("Vui lòng tạo hóa đơn trước khi thêm món");
     return;
   }
-  if (isDaThanhToan.value) return;
+  if (isHoaDonBiKhoa.value) {
+    message.warning(
+      "Hóa đơn đang có giao dịch PayOS chưa kết thúc, không thể chỉnh sửa"
+    );
+    return;
+  }
   selectedSanPham.value = sp;
   sizeModalOpen.value = true;
 };
@@ -795,6 +836,12 @@ const onRemoveVoucher = async () => {
 // Modal Topping
 // ============================================================
 const openToppingModal = (idChiTiet: number) => {
+  if (isHoaDonBiKhoa.value) {
+    message.warning(
+      "Hóa đơn đang có giao dịch PayOS chưa kết thúc, không thể chỉnh sửa"
+    );
+    return;
+  }
   selectedChiTietId.value = idChiTiet;
   toppingModalOpen.value = true;
 };
@@ -841,35 +888,105 @@ const onXoaTopping = async (ct: ChiTietHoaDon, tp: HdctTopping) => {
 // ============================================================
 // Thanh toán
 // ============================================================
+const removePaidInvoiceFromPos = (idHoaDon: number) => {
+  const removedIdx = openInvoices.value.findIndex(
+    (hd) => hd.idHoaDon === idHoaDon
+  );
+  openInvoices.value = openInvoices.value.filter(
+    (hd) => hd.idHoaDon !== idHoaDon
+  );
+  clearInvoiceFromSession(idHoaDon);
+  if (openInvoices.value.length === 0) {
+    activeInvoiceId.value = null;
+    sessionStorage.removeItem(SS_ACTIVE_KEY);
+    return;
+  }
+  const nextIdx = Math.min(removedIdx, openInvoices.value.length - 1);
+  activeInvoiceId.value = openInvoices.value[nextIdx].idHoaDon;
+  sessionStorage.setItem(SS_ACTIVE_KEY, String(activeInvoiceId.value));
+};
+
 const onThanhToan = async () => {
   if (!activeHoaDon.value) return;
   const idHoaDon = activeHoaDon.value.idHoaDon;
-  const removedIdx = openInvoices.value.findIndex((hd) => hd.idHoaDon === idHoaDon);
 
   loadingThanhToan.value = true;
   try {
     await thanhToan(idHoaDon, { hinhThucThanhToan: "TIEN_MAT" });
 
-    // Chỉ reset state SAU KHI backend xác nhận thành công (200)
-    // Hóa đơn DA_THANH_TOAN vẫn tồn tại trong DB, chỉ clear khỏi POS
-    openInvoices.value = openInvoices.value.filter((hd) => hd.idHoaDon !== idHoaDon);
-    clearInvoiceFromSession(idHoaDon);
+    removePaidInvoiceFromPos(idHoaDon);
 
-    // Chọn hóa đơn kế tiếp hoặc set null
-    if (openInvoices.value.length === 0) {
-      activeInvoiceId.value = null;
-      sessionStorage.removeItem(SS_ACTIVE_KEY);
-    } else {
-      const nextIdx = Math.min(removedIdx, openInvoices.value.length - 1);
-      activeInvoiceId.value = openInvoices.value[nextIdx].idHoaDon;
-      sessionStorage.setItem(SS_ACTIVE_KEY, String(activeInvoiceId.value));
-    }
-
-    message.success("Thanh toán hóa đơn thành công");
+    notification.success({
+      message: "Thanh toán thành công",
+      description: "Hóa đơn đã được thanh toán bằng tiền mặt.",
+      placement: "topRight",
+      duration: 5,
+    });
   } catch (err: any) {
     // Nếu backend báo lỗi (thiếu kho/topping/BTP):
     // giữ nguyên tab, giữ toàn bộ món, giữ sessionStorage
     message.error(err.response?.data?.message || "Thanh toán thất bại");
+  } finally {
+    loadingThanhToan.value = false;
+  }
+};
+
+const openPayOSModal = () => {
+  if (!activeHoaDon.value || (activeHoaDon.value.chiTiet?.length ?? 0) === 0) return;
+  payosModalOpen.value = true;
+};
+
+const onPayOSCreated = (payment: PayOSCreateResponse) => {
+  if (!activeHoaDon.value) return;
+  const updatedHd = {
+    ...activeHoaDon.value,
+    payosOrderCode: payment.orderCode,
+    payosPaymentLinkId: payment.paymentLinkId,
+    payosStatus: payment.status,
+  };
+  replaceInvoice(updatedHd);
+};
+
+const onPayOSExpired = async (idHoaDon: number) => {
+  payosModalOpen.value = false;
+  try {
+    const res = await getHoaDonById(idHoaDon);
+    replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
+    message.warning("Mã QR đã hết hạn hoặc bị hủy");
+  } catch (err) {
+    console.error("Lỗi cập nhật hóa đơn khi PayOS expired", err);
+  }
+};
+
+const onPayOSCancelled = (idHoaDon: number) => {
+  payosModalOpen.value = false;
+  if (activeHoaDon.value && activeHoaDon.value.idHoaDon === idHoaDon) {
+    const updatedHd = {
+      ...activeHoaDon.value,
+      payosStatus: "CANCELLED" as const,
+    };
+    replaceInvoice(updatedHd);
+  }
+};
+
+const onPayOSPaid = async (idHoaDon: number) => {
+  loadingThanhToan.value = true;
+  try {
+    await thanhToan(idHoaDon, { hinhThucThanhToan: "CHUYEN_KHOAN" });
+    
+    payosModalOpen.value = false;
+    sessionStorage.removeItem(`pos_payos_payment_${idHoaDon}`);
+    
+    removePaidInvoiceFromPos(idHoaDon);
+    
+    notification.success({
+      message: "Thanh toán thành công",
+      description: "Hóa đơn đã được thanh toán bằng chuyển khoản.",
+      placement: "topRight",
+      duration: 5,
+    });
+  } catch (err: any) {
+    message.error(err.response?.data?.message || "Lỗi cập nhật thanh toán chuyển khoản");
   } finally {
     loadingThanhToan.value = false;
   }
@@ -1631,5 +1748,15 @@ onMounted(() => {
 .invoice-footer {
   padding: 0 14px 14px;
   flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+}
+
+.invoice-footer .btn-thanh-toan {
+  flex: 1;
+}
+
+.invoice-footer .btn-qr {
+  flex: 1;
 }
 </style>

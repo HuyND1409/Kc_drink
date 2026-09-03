@@ -82,6 +82,10 @@ export interface HoaDon {
   maVoucher?: string | null;
   tenVoucher?: string | null;
   chiTiet: ChiTietHoaDon[];
+  hinhThucThanhToan?: string | null;
+  payosOrderCode?: number | null;
+  payosPaymentLinkId?: string | null;
+  payosStatus?: PayOSPaymentStatus | null;
 }
 
 export interface KhachHang {
@@ -151,4 +155,26 @@ export interface VoucherKhaDung {
   soLuong?: number | null;
   idKhachHang?: number | null;
   ngayKetThuc?: string | null;
+}
+
+export type PayOSPaymentStatus =
+  | "PENDING"
+  | "PAID"
+  | "CANCELLED"
+  | "EXPIRED";
+
+export interface PayOSCreateResponse {
+  orderCode: number;
+  amount: number;
+  description: string;
+  checkoutUrl: string;
+  qrCode: string;
+  paymentLinkId: string;
+  status: PayOSPaymentStatus;
+}
+
+export interface PayOSPaymentStatusResponse {
+  orderCode: number;
+  amount: number;
+  status: PayOSPaymentStatus;
 }

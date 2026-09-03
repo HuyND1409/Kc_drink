@@ -117,6 +117,18 @@ export const thanhToan = (idHoaDon: number, body: ThanhToanRequest) => {
   return api.post(`/hoa-don/${idHoaDon}/thanh-toan`, body);
 };
 
+export const taoThanhToanPayOS = (idHoaDon: number) => {
+  return api.post(`/hoa-don/${idHoaDon}/payos`);
+};
+
+export const layTrangThaiPayOS = (idHoaDon: number) => {
+  return api.get(`/hoa-don/${idHoaDon}/payos/status`);
+};
+
+export const huyThanhToanPayOS = (idHoaDon: number) => {
+  return api.post(`/hoa-don/${idHoaDon}/payos/cancel`);
+};
+
 // ============================================================
 // API: Voucher khả dụng cho hóa đơn
 // ============================================================
