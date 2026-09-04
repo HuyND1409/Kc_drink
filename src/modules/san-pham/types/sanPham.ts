@@ -16,8 +16,14 @@ export interface SanPhamRequest {
   tenSanPham: string;
   gia: number;
   moTa?: string | null;
-  hinhAnh?: string | null;
   idDanhMuc?: number | null;
+}
+
+export interface SanPhamFormPayload {
+  product: SanPhamRequest;
+  selectedSizes: ProductSizeSelection[];
+  imageFile: File | null;
+  removeImage: boolean;
 }
 
 // ============================================================

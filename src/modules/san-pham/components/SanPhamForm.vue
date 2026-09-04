@@ -40,6 +40,35 @@
         />
       </a-form-item>
 
+      <!-- Hinh anh san pham -->
+      <a-form-item label="Hình ảnh sản phẩm">
+        <div style="display: flex; gap: 16px; align-items: flex-end;">
+          <div
+            style="width: 140px; height: 140px; border: 1px dashed #d9d9d9; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #fafafa;"
+          >
+            <img v-if="previewUrl" :src="previewUrl" style="width: 100%; height: 100%; object-fit: cover;" />
+            <div v-else style="color: #bfbfbf; font-size: 24px;">☕</div>
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <a-upload
+              :before-upload="handleBeforeUpload"
+              :show-upload-list="false"
+              accept=".jpg,.jpeg,.png,.webp"
+            >
+              <a-button>
+                {{ previewUrl ? 'Thay ảnh' : 'Chọn ảnh' }}
+              </a-button>
+            </a-upload>
+            
+            <a-button v-if="previewUrl" danger @click="handleRemoveImage">
+              Xóa ảnh
+            </a-button>
+            <span style="font-size: 12px; color: #8c8c8c;">Hỗ trợ JPG, PNG, WebP (Tối đa 5MB)</span>
+          </div>
+        </div>
+      </a-form-item>
+
       <!-- Size ap dung voi phu thu rieng -->
       <a-form-item name="sizeSection">
         <template #label>
@@ -94,12 +123,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from "vue";
+import { reactive, ref, watch, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 import type { AxiosError } from "axios";
-import type { SanPham, SanPhamRequest, Size, ProductSizeSelection } from "../types/sanPham";
-import { getAllSize } from "../api/sanPhamApi";
+import type { SanPham, SanPhamRequest, Size, ProductSizeSelection, SanPhamFormPayload } from "../types/sanPham";
+import { getAllSize, getSanPhamImageUrl } from "../api/sanPhamApi";
 
 const props = defineProps<{
   open: boolean;
@@ -110,7 +139,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "close"): void;
-  (e: "save", payload: { product: SanPhamRequest; selectedSizes: ProductSizeSelection[] }): void;
+  (e: "save", payload: SanPhamFormPayload): void;
 }>();
 
 const formRef = ref<FormInstance>();
@@ -132,6 +161,47 @@ const form = reactive<{
   tenSanPham: "",
   gia: null,
   moTa: "",
+});
+
+// Image state
+const imageFile = ref<File | null>(null);
+const removeImage = ref(false);
+const previewUrl = ref<string>("");
+
+const cleanupPreviewUrl = () => {
+  if (previewUrl.value && previewUrl.value.startsWith("blob:")) {
+    URL.revokeObjectURL(previewUrl.value);
+  }
+};
+
+const handleBeforeUpload = (file: File) => {
+  const isJpgOrPng = file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp";
+  if (!isJpgOrPng) {
+    message.error("Bạn chỉ có thể upload file JPG, PNG hoặc WebP!");
+    return false;
+  }
+  const isLt5M = file.size / 1024 / 1024 < 5;
+  if (!isLt5M) {
+    message.error("Kích thước ảnh không được vượt quá 5MB!");
+    return false;
+  }
+  
+  cleanupPreviewUrl();
+  imageFile.value = file;
+  removeImage.value = false;
+  previewUrl.value = URL.createObjectURL(file);
+  return false;
+};
+
+const handleRemoveImage = () => {
+  cleanupPreviewUrl();
+  imageFile.value = null;
+  removeImage.value = true;
+  previewUrl.value = "";
+};
+
+onUnmounted(() => {
+  cleanupPreviewUrl();
 });
 
 // ============================================================
@@ -183,10 +253,16 @@ watch(
   async (isOpen) => {
     if (isOpen) {
       await loadSizes();
+      cleanupPreviewUrl();
+      imageFile.value = null;
+      removeImage.value = false;
+
       if (props.editData) {
         form.tenSanPham = props.editData.tenSanPham;
         form.gia = props.editData.gia;
         form.moTa = props.editData.moTa ?? "";
+        previewUrl.value = getSanPhamImageUrl(props.editData.hinhAnh);
+
         // Load phuThu rieng tu editSanPhamSizes
         const newChecked = new Set<number>();
         const newPhuThu: Record<number, number> = {};
@@ -222,6 +298,9 @@ const resetForm = () => {
   form.tenSanPham = "";
   form.gia = null;
   form.moTa = "";
+  previewUrl.value = "";
+  imageFile.value = null;
+  removeImage.value = false;
   checkedSizeIds.value = new Set();
   phuThuMap.value = {};
   sizeError.value = false;
@@ -248,7 +327,6 @@ const handleSubmit = async () => {
       tenSanPham: form.tenSanPham.trim(),
       gia: form.gia as number,
       moTa: form.moTa.trim() || null,
-      hinhAnh: props.editData?.hinhAnh ?? null,
       idDanhMuc: props.editData?.idDanhMuc ?? null,
     };
 
@@ -259,7 +337,14 @@ const handleSubmit = async () => {
       })
     );
 
-    emit("save", { product, selectedSizes });
+    const payload: SanPhamFormPayload = {
+      product,
+      selectedSizes,
+      imageFile: imageFile.value,
+      removeImage: removeImage.value
+    };
+
+    emit("save", payload);
   } catch {
     // form validation failed
   } finally {

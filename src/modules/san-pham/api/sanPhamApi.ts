@@ -40,6 +40,44 @@ export const unlockSanPham = (id: number) => {
 };
 
 // ============================================================
+// API: Hinh Anh San Pham
+// ============================================================
+
+export const uploadSanPhamImage = (
+  idSanPham: number,
+  file: File
+) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return api.post(
+    `/san-pham/${idSanPham}/hinh-anh`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+};
+export const deleteSanPhamImage = (idSanPham: number) => {
+  return api.delete(`/san-pham/${idSanPham}/hinh-anh`);
+};
+
+export const getSanPhamImageUrl = (path: string | null | undefined): string => {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+
+  const baseURL = api.defaults.baseURL || window.location.origin;
+  try {
+    const origin = new URL(baseURL, window.location.origin).origin;
+    return `${origin}${path.startsWith('/') ? path : '/' + path}`;
+  } catch {
+    return path;
+  }
+};
+
+// ============================================================
 // API: Size dung chung
 // ============================================================
 

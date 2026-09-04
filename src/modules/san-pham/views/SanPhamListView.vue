@@ -52,6 +52,14 @@
       bordered
     >
       <template #bodyCell="{ column, record }">
+        <!-- Hinh Anh -->
+        <template v-if="column.key === 'hinhAnh'">
+          <div style="width: 56px; height: 56px; border-radius: 4px; overflow: hidden; background: #fafafa; display: flex; align-items: center; justify-content: center; margin: 0 auto; border: 1px solid #f0f0f0;">
+            <img v-if="record.hinhAnh" :src="getSanPhamImageUrl(record.hinhAnh)" style="width: 100%; height: 100%; object-fit: cover;" @error="(e: any) => e.target.style.display='none'" />
+            <span v-else style="font-size: 20px; color: #bfbfbf;">☕</span>
+          </div>
+        </template>
+
         <!-- Gia -->
         <template v-if="column.key === 'gia'">
           <span class="price-cell">{{ formatCurrency(record.gia) }}</span>
@@ -171,8 +179,11 @@ import {
   deleteSanPhamSize,
   getCongThucNguyenLieu,
   getCongThucBtp,
+  uploadSanPhamImage,
+  deleteSanPhamImage,
+  getSanPhamImageUrl,
 } from "../api/sanPhamApi";
-import type { SanPham, SanPhamRequest, SanPhamSize, ProductSizeSelection } from "../types/sanPham";
+import type { SanPham, SanPhamRequest, SanPhamSize, ProductSizeSelection, SanPhamFormPayload } from "../types/sanPham";
 
 // ============================================================
 // State
@@ -213,6 +224,7 @@ const columns = [
     align: "center" as const,
     customRender: ({ text }: { text: number }) => `SP${String(text).padStart(3, "0")}`,
   },
+  { title: "Ảnh", key: "hinhAnh", width: 80, align: "center" as const },
   { title: "Tên sản phẩm", dataIndex: "tenSanPham", ellipsis: true },
   { title: "Giá gốc", key: "gia", width: 140, align: "right" as const },
   { title: "Size", key: "sizes", width: 180 },
@@ -328,19 +340,18 @@ const openDrawer = (record: SanPham) => {
 // ============================================================
 // Luu san pham (Them + Sua)
 // ============================================================
-const onSave = async (payload: { product: SanPhamRequest; selectedSizes: ProductSizeSelection[] }) => {
-  const { product, selectedSizes } = payload;
-
+const onSave = async (payload: SanPhamFormPayload) => {
   if (editing.value) {
     // === SUA ===
-    await handleUpdate(editing.value.idSanPham, product, selectedSizes);
+    await handleUpdate(editing.value.idSanPham, payload);
   } else {
     // === THEM ===
-    await handleCreate(product, selectedSizes);
+    await handleCreate(payload);
   }
 };
 
-const handleCreate = async (product: SanPhamRequest, selectedSizes: ProductSizeSelection[]) => {
+const handleCreate = async (payload: SanPhamFormPayload) => {
+  const { product, selectedSizes, imageFile } = payload;
   try {
     // 1. POST /san-pham
     const res = await createSanPham(product);
@@ -351,15 +362,24 @@ const handleCreate = async (product: SanPhamRequest, selectedSizes: ProductSizeS
       selectedSizes.map((s) => createSanPhamSize(newId, s.idSize, s.phuThu))
     );
 
+    // 3. Upload hinh anh
+    if (imageFile) {
+      try {
+        await uploadSanPhamImage(newId, imageFile);
+      } catch (err) {
+        message.warning("Sản phẩm đã được tạo nhưng tải ảnh thất bại. Bạn có thể cập nhật ảnh sau.");
+      }
+    }
+
     message.success("Thêm sản phẩm thành công!");
     openModal.value = false;
     editing.value = undefined;
     editingSanPhamSizes.value = [];
 
-    // 3. Load lai danh sach
+    // Load lai danh sach
     await loadData();
 
-    // 4. Tu dong mo drawer cong thuc
+    // Tu dong mo drawer cong thuc
     const created = dsSanPham.value.find((sp) => sp.idSanPham === newId);
     if (created) {
       selectedSanPham.value = created;
@@ -373,11 +393,8 @@ const handleCreate = async (product: SanPhamRequest, selectedSizes: ProductSizeS
   }
 };
 
-const handleUpdate = async (
-  idSanPham: number,
-  product: SanPhamRequest,
-  selectedSizes: ProductSizeSelection[]
-) => {
+const handleUpdate = async (idSanPham: number, payload: SanPhamFormPayload) => {
+  const { product, selectedSizes, imageFile, removeImage } = payload;
   try {
     // 1. PUT /san-pham/{id}
     await updateSanPham(idSanPham, product);
@@ -423,6 +440,17 @@ const handleUpdate = async (
 
       // An toan: xoa
       await deleteSanPhamSize(sps.id);
+    }
+
+    // 4. Cap nhat hinh anh
+    try {
+      if (imageFile) {
+        await uploadSanPhamImage(idSanPham, imageFile);
+      } else if (removeImage && editing.value?.hinhAnh) {
+        await deleteSanPhamImage(idSanPham);
+      }
+    } catch (err) {
+      message.warning("Thông tin sản phẩm đã được lưu, nhưng thao tác ảnh thất bại. Vui lòng thử lại sau.");
     }
 
     message.success("Cập nhật sản phẩm thành công!");
