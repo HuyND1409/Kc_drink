@@ -23,6 +23,11 @@ export interface SanPham {
   hinhAnh: string | null;
   trangThai: number;
   idDanhMuc: number | null;
+  idKm?: number | null;
+  tenKhuyenMai?: string | null;
+  tienGiamKhuyenMai?: number;
+  giaSauKhuyenMai?: number;
+  coKhuyenMai?: boolean;
 }
 
 // ============================================================
@@ -64,6 +69,10 @@ export interface ChiTietHoaDon {
   mucDuong?: number | null;
   mucDa?: number | null;
   ghiChu?: string | null;
+  giaGoc?: number;
+  tienGiamKhuyenMai?: number;
+  idKm?: number | null;
+  tenKhuyenMai?: string | null;
 }
 
 export interface HoaDon {
@@ -81,6 +90,7 @@ export interface HoaDon {
   idVoucher?: number | null;
   maVoucher?: string | null;
   tenVoucher?: string | null;
+  giamGiaKhuyenMai?: number;
   chiTiet: ChiTietHoaDon[];
   hinhThucThanhToan?: string | null;
   payosOrderCode?: number | null;

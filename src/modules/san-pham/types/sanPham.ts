@@ -10,6 +10,11 @@ export interface SanPham {
   hinhAnh?: string | null;
   trangThai: number;
   idDanhMuc?: number | null;
+  idKm?: number | null;
+  tenKhuyenMai?: string | null;
+  tienGiamKhuyenMai?: number;
+  giaSauKhuyenMai?: number;
+  coKhuyenMai?: boolean;
 }
 
 export interface SanPhamRequest {

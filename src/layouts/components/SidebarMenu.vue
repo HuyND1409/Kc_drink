@@ -36,6 +36,9 @@
       <a-menu-item key="6" @click="router.push('/voucher')">
         Voucher
       </a-menu-item>
+      <a-menu-item key="khuyen-mai" @click="router.push('/khuyen-mai')">
+        Khuyến mãi
+      </a-menu-item>
       <a-sub-menu key="sub-kho">
         <template #title>
           🧪 Kho & Nguyên liệu

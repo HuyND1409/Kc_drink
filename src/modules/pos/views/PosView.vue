@@ -25,10 +25,18 @@
                 <div v-else class="product-img-placeholder">
                   <span>☕</span>
                 </div>
+                <!-- Badge CTKM -->
+                <div class="promo-badge" v-if="sp.coKhuyenMai && sp.tienGiamKhuyenMai">
+                  -{{ formatVND(sp.tienGiamKhuyenMai) }}
+                </div>
               </div>
               <div class="product-info">
                 <div class="product-name">{{ sp.tenSanPham }}</div>
-                <div class="product-price">{{ formatVND(sp.gia) }}</div>
+                <div class="product-price-row" v-if="sp.coKhuyenMai">
+                  <span class="product-price-original">{{ formatVND(sp.gia) }}</span>
+                  <span class="product-price-sale">{{ formatVND(sp.giaSauKhuyenMai ?? sp.gia) }}</span>
+                </div>
+                <div class="product-price" v-else>{{ formatVND(sp.gia) }}</div>
               </div>
             </div>
           </div>
@@ -168,7 +176,10 @@
           <div v-for="ct in (activeHoaDon!.chiTiet ?? [])" :key="ct.idHoaDonChiTiet" class="invoice-item">
             <!-- Hàng 1: Tên sản phẩm + thành tiền -->
             <div class="item-row1">
-              <span class="item-name">{{ ct.tenSanPham || `SP #${ct.idSanPham}` }}</span>
+              <span class="item-name">
+                {{ ct.tenSanPham || `SP #${ct.idSanPham}` }}
+                <a-tag v-if="ct.tenKhuyenMai" color="red" style="font-size: 9px; line-height: 12px; margin-left: 4px; padding: 0 4px">{{ ct.tenKhuyenMai }}</a-tag>
+              </span>
               <span class="item-price">{{ formatVND(ct.thanhTien) }}</span>
             </div>
 
@@ -185,7 +196,10 @@
                 <span class="item-row2-sep">·</span>
                 <span class="item-row2-opt">{{ formatDa(ct.mucDa) }}</span>
               </template>
-              <span class="item-unit-price" style="margin-left:auto">{{ formatVND(ct.donGia) }}/món</span>
+              <div class="item-unit-price-wrap" style="margin-left:auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2">
+                <span class="item-unit-price-original" v-if="ct.tienGiamKhuyenMai" style="font-size: 10px; color: #8c8c8c; text-decoration: line-through">{{ formatVND(ct.giaGoc ?? ct.donGia) }}/món</span>
+                <span class="item-unit-price" :style="{ color: ct.tienGiamKhuyenMai ? '#ff4d4f' : 'inherit' }">{{ formatVND(ct.donGia) }}/món</span>
+              </div>
             </div>
 
             <!-- Hàng 2b: Ghi chú (nếu có) -->
@@ -234,11 +248,15 @@
         <!-- Tổng tiền -->
         <div class="invoice-summary">
           <div class="summary-row">
-            <span class="summary-label">Tạm tính</span>
-            <span class="summary-value">{{ formatVND(activeHoaDon!.tongTien) }}</span>
+            <span class="summary-label">Tạm tính (trước CTKM)</span>
+            <span class="summary-value">{{ formatVND(activeHoaDon!.tongTien + (activeHoaDon!.giamGiaKhuyenMai ?? 0)) }}</span>
+          </div>
+          <div class="summary-row" v-if="(activeHoaDon!.giamGiaKhuyenMai ?? 0) > 0">
+            <span class="summary-label">Khuyến mãi</span>
+            <span class="summary-value discount-value">-{{ formatVND(activeHoaDon!.giamGiaKhuyenMai!) }}</span>
           </div>
           <div class="summary-row" v-if="(activeHoaDon!.giamGia ?? 0) > 0">
-            <span class="summary-label">Giảm giá</span>
+            <span class="summary-label">Voucher</span>
             <span class="summary-value discount-value">-{{ formatVND(activeHoaDon!.giamGia!) }}</span>
           </div>
           <div class="summary-row" v-if="(activeHoaDon!.phiVanChuyen ?? 0) > 0">
@@ -1826,5 +1844,33 @@ onMounted(() => {
 
 .invoice-footer .btn-qr {
   flex: 1;
+}
+
+.promo-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background-color: #ff4d4f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  z-index: 10;
+}
+.product-price-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.product-price-original {
+  font-size: 11px;
+  color: #8c8c8c;
+  text-decoration: line-through;
+}
+.product-price-sale {
+  color: #ff4d4f;
+  font-weight: 600;
+  font-size: 14px;
 }
 </style>

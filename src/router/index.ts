@@ -66,6 +66,11 @@ const router = createRouter({
         { path: "nhan-vien", component: NhanVienListView },
         { path: "khach-hang", component: KhachHangListView },
         { path: "voucher", component: VoucherListView },
+        {
+          path: "khuyen-mai",
+          component: () =>
+            import("@/modules/khuyen-mai/views/KhuyenMaiListView.vue"),
+        },
 
         // 👇 THÊM ROUTE NGUYÊN LIỆU VÀO TRONG APPLAYOUT 👇
         { path: "nguyen-lieu", component: NguyenLieuListView },
