@@ -253,19 +253,39 @@
 
         <!-- Nút thanh toán -->
         <div class="invoice-footer">
-          <a-button type="primary" size="large"
-            :disabled="isDaThanhToan || (activeHoaDon!.chiTiet?.length ?? 0) === 0 || payOSDangKhoaHoaDon || deliveryUpdating"
-            :loading="loadingThanhToan" @click="onThanhToan" class="btn-thanh-toan">
-            <template v-if="isDaThanhToan">✓ Đã thanh toán</template>
-            <template v-else>Tiền mặt</template>
-          </a-button>
+          <!-- Đã thanh toán và có giao hàng -->
+          <template v-if="isDaThanhToan && (activeHoaDon!.phiVanChuyen ?? 0) > 0">
+            <template v-if="activeVanDon?.idHoaDon === activeHoaDon!.idHoaDon && activeVanDon?.maVanDonGhn">
+              <a-button type="default" size="large" disabled class="btn-thanh-toan" style="flex: 2">
+                Đã tạo đơn GHN: {{ activeVanDon.maVanDonGhn }}
+              </a-button>
+              <a-button type="primary" size="large" @click="onMoModalHoanTat" style="flex: 1">
+                Hoàn tất
+              </a-button>
+            </template>
+            <template v-else>
+              <a-button type="primary" size="large" :loading="loadingTaoDonGhn" @click="onThuTaoLaiDonGhn" class="btn-thanh-toan" style="width: 100%">
+                Thử tạo lại đơn GHN
+              </a-button>
+            </template>
+          </template>
 
-          <a-button type="default" size="large"
-            :disabled="isDaThanhToan || (activeHoaDon!.chiTiet?.length ?? 0) === 0 || deliveryUpdating"
-            :loading="loadingThanhToan" @click="openPayOSModal" class="btn-qr">
-            <template v-if="payOSDangKhoaHoaDon">Xem QR chuyển khoản</template>
-            <template v-else>Chuyển khoản QR</template>
-          </a-button>
+          <!-- Chưa thanh toán, hoặc đã thanh toán nhưng nhận tại quầy -->
+          <template v-else>
+            <a-button type="primary" size="large"
+              :disabled="isDaThanhToan || (activeHoaDon!.chiTiet?.length ?? 0) === 0 || payOSDangKhoaHoaDon || deliveryUpdating"
+              :loading="loadingThanhToan" @click="onThanhToan" class="btn-thanh-toan">
+              <template v-if="isDaThanhToan">✓ Đã thanh toán</template>
+              <template v-else>Tiền mặt</template>
+            </a-button>
+
+            <a-button type="default" size="large"
+              :disabled="isDaThanhToan || (activeHoaDon!.chiTiet?.length ?? 0) === 0 || deliveryUpdating"
+              :loading="loadingThanhToan" @click="openPayOSModal" class="btn-qr">
+              <template v-if="payOSDangKhoaHoaDon">Xem QR chuyển khoản</template>
+              <template v-else>Chuyển khoản QR</template>
+            </a-button>
+          </template>
         </div>
       </template>
     </div>
@@ -288,6 +308,13 @@
 
   <PayOSPaymentModal :open="payosModalOpen" :hoa-don="activeHoaDon" @close="payosModalOpen = false"
     @created="onPayOSCreated" @paid="onPayOSPaid" @expired="onPayOSExpired" @cancelled="onPayOSCancelled" />
+
+  <PosPaymentSuccessModal
+    :open="paymentSuccessModalOpen"
+    :hoa-don="paymentSuccessHoaDon"
+    :van-don="paymentSuccessVanDon"
+    @close="onPaymentSuccessModalClose"
+  />
 </template>
 
 <script setup lang="ts">
@@ -300,6 +327,7 @@ import ToppingPickerModal from "../components/ToppingPickerModal.vue";
 import CustomerPickerModal from "../components/CustomerPickerModal.vue";
 import VoucherPickerModal from "../components/VoucherPickerModal.vue";
 import PayOSPaymentModal from "../components/PayOSPaymentModal.vue";
+import PosPaymentSuccessModal from "../components/PosPaymentSuccessModal.vue";
 import PosDeliverySection from "../components/PosDeliverySection.vue";
 
 import {
@@ -317,6 +345,7 @@ import {
   apDungVoucher,
   boVoucher,
   boGiaoHangHoaDon,
+  taoDonGhnHoaDon,
 } from "../api/posApi";
 import { getSanPhamImageUrl } from "@/modules/san-pham/api/sanPhamApi";
 
@@ -355,10 +384,12 @@ const openInvoices = ref<HoaDon[]>([]);
 const activeInvoiceId = ref<number | null>(null);
 const loadingTaoHD = ref(false);
 const loadingThanhToan = ref(false);
+const loadingTaoDonGhn = ref(false);
+const processingPaidInvoiceIds = new Set<number>();
 const loadingCtId = ref<number | null>(null); // chi tiết đang cập nhật
 
 // ============================================================
-// State: Modals
+// State: Modal
 // ============================================================
 const sizeModalOpen = ref(false);
 const selectedSanPham = ref<SanPham | null>(null);
@@ -367,6 +398,10 @@ const toppingModalOpen = ref(false);
 const selectedChiTietId = ref<number | null>(null);
 
 const payosModalOpen = ref(false);
+
+const paymentSuccessModalOpen = ref(false);
+const paymentSuccessHoaDon = ref<HoaDon | null>(null);
+const paymentSuccessVanDon = ref<VanDonGhnResponse | null>(null);
 
 // ============================================================
 // State: Giao hàng
@@ -807,14 +842,106 @@ const onXoaTopping = async (ct: ChiTietHoaDon, tp: HdctTopping) => {
 // ============================================================
 // Thanh toán
 // ============================================================
+const handlePostPayment = async (
+  idHoaDon: number,
+  resThanhToan: any,
+  coGiaoHang: boolean
+) => {
+  const hoaDonDaThanhToan = normalizeHoaDon(
+    resThanhToan.data?.data ?? resThanhToan.data
+  );
+  replaceInvoice(hoaDonDaThanhToan);
+
+  if (!coGiaoHang) {
+    paymentSuccessHoaDon.value = hoaDonDaThanhToan;
+    paymentSuccessVanDon.value = null;
+    paymentSuccessModalOpen.value = true;
+    return;
+  }
+
+  loadingTaoDonGhn.value = true;
+  try {
+    const resGhn = await taoDonGhnHoaDon(idHoaDon);
+    const vanDonRes = resGhn.data?.data ?? resGhn.data;
+    if (activeInvoiceId.value === idHoaDon) {
+      activeVanDon.value = vanDonRes;
+    }
+
+    paymentSuccessHoaDon.value = hoaDonDaThanhToan;
+    paymentSuccessVanDon.value = vanDonRes;
+    paymentSuccessModalOpen.value = true;
+  } catch (errGhn: any) {
+    notification.warning({
+      message: "Thanh toán thành công nhưng chưa tạo được đơn GHN",
+      description: errGhn.response?.data?.message || "Vui lòng dùng nút 'Thử tạo lại đơn GHN'",
+      placement: "topRight",
+      duration: 8,
+    });
+  } finally {
+    loadingTaoDonGhn.value = false;
+  }
+};
+
+const onThuTaoLaiDonGhn = async () => {
+  if (loadingTaoDonGhn.value) return;
+  if (!activeHoaDon.value) return;
+  if (activeHoaDon.value.trangThai !== "DA_THANH_TOAN") return;
+  if ((activeHoaDon.value.phiVanChuyen ?? 0) <= 0) return;
+
+  // Snapshot trước khi await để tránh activeHoaDon thay đổi khi đổi tab
+  const hoaDonRetry = activeHoaDon.value;
+  const idHoaDon = hoaDonRetry.idHoaDon;
+
+  loadingTaoDonGhn.value = true;
+  try {
+    const resGhn = await taoDonGhnHoaDon(idHoaDon);
+    const vanDonRes = resGhn.data?.data ?? resGhn.data;
+    if (activeInvoiceId.value === idHoaDon) {
+      activeVanDon.value = vanDonRes;
+    }
+
+    paymentSuccessHoaDon.value = hoaDonRetry;
+    paymentSuccessVanDon.value = vanDonRes;
+    paymentSuccessModalOpen.value = true;
+  } catch (errGhn: any) {
+    notification.warning({
+      message: "Thanh toán thành công nhưng chưa tạo được đơn GHN",
+      description: errGhn.response?.data?.message || "Vui lòng dùng nút 'Thử tạo lại đơn GHN'",
+      placement: "topRight",
+      duration: 8,
+    });
+  } finally {
+    loadingTaoDonGhn.value = false;
+  }
+};
+
+const onMoModalHoanTat = () => {
+  if (!activeHoaDon.value) return;
+  if (activeHoaDon.value.trangThai !== "DA_THANH_TOAN") return;
+  if (activeVanDon.value?.idHoaDon !== activeHoaDon.value.idHoaDon) return;
+  if (!activeVanDon.value?.maVanDonGhn) return;
+
+  paymentSuccessHoaDon.value = activeHoaDon.value;
+  paymentSuccessVanDon.value = activeVanDon.value;
+  paymentSuccessModalOpen.value = true;
+};
+
 const removePaidInvoiceFromPos = (idHoaDon: number) => {
   const removedIdx = openInvoices.value.findIndex(
     (hd) => hd.idHoaDon === idHoaDon
   );
+  if (removedIdx === -1) return;
+  const wasActive = activeInvoiceId.value === idHoaDon;
+
   openInvoices.value = openInvoices.value.filter(
     (hd) => hd.idHoaDon !== idHoaDon
   );
   clearInvoiceFromSession(idHoaDon);
+
+  if (!wasActive) return;
+
+  activeVanDon.value = null;
+
   if (openInvoices.value.length === 0) {
     activeInvoiceId.value = null;
     sessionStorage.removeItem(SS_ACTIVE_KEY);
@@ -825,6 +952,15 @@ const removePaidInvoiceFromPos = (idHoaDon: number) => {
   sessionStorage.setItem(SS_ACTIVE_KEY, String(activeInvoiceId.value));
 };
 
+const onPaymentSuccessModalClose = () => {
+  if (paymentSuccessHoaDon.value) {
+    removePaidInvoiceFromPos(paymentSuccessHoaDon.value.idHoaDon);
+  }
+  paymentSuccessModalOpen.value = false;
+  paymentSuccessHoaDon.value = null;
+  paymentSuccessVanDon.value = null;
+};
+
 const onThanhToan = async () => {
   if (!activeHoaDon.value) return;
   if (deliveryUpdating.value) {
@@ -832,19 +968,12 @@ const onThanhToan = async () => {
     return;
   }
   const idHoaDon = activeHoaDon.value.idHoaDon;
+  const coGiaoHang = (activeVanDon.value?.idHoaDon === idHoaDon) || ((activeHoaDon.value.phiVanChuyen ?? 0) > 0);
 
   loadingThanhToan.value = true;
   try {
-    await thanhToan(idHoaDon, { hinhThucThanhToan: "TIEN_MAT" });
-
-    removePaidInvoiceFromPos(idHoaDon);
-
-    notification.success({
-      message: "Thanh toán thành công",
-      description: "Hóa đơn đã được thanh toán bằng tiền mặt.",
-      placement: "topRight",
-      duration: 5,
-    });
+    const res = await thanhToan(idHoaDon, { hinhThucThanhToan: "TIEN_MAT" });
+    await handlePostPayment(idHoaDon, res, coGiaoHang);
   } catch (err: any) {
     // Nếu backend báo lỗi (thiếu kho/topping/BTP):
     // giữ nguyên tab, giữ toàn bộ món, giữ sessionStorage
@@ -897,25 +1026,27 @@ const onPayOSCancelled = (idHoaDon: number) => {
 };
 
 const onPayOSPaid = async (idHoaDon: number) => {
+  if (processingPaidInvoiceIds.has(idHoaDon)) return;
+
+  const hd = openInvoices.value.find((i) => i.idHoaDon === idHoaDon);
+  if (!hd || hd.trangThai === "DA_THANH_TOAN") return;
+
+  const coGiaoHang = (activeVanDon.value?.idHoaDon === idHoaDon) || ((hd.phiVanChuyen ?? 0) > 0);
+
+  processingPaidInvoiceIds.add(idHoaDon);
   loadingThanhToan.value = true;
   try {
-    await thanhToan(idHoaDon, { hinhThucThanhToan: "CHUYEN_KHOAN" });
+    const res = await thanhToan(idHoaDon, { hinhThucThanhToan: "CHUYEN_KHOAN" });
 
     payosModalOpen.value = false;
     sessionStorage.removeItem(`pos_payos_payment_${idHoaDon}`);
 
-    removePaidInvoiceFromPos(idHoaDon);
-
-    notification.success({
-      message: "Thanh toán thành công",
-      description: "Hóa đơn đã được thanh toán bằng chuyển khoản.",
-      placement: "topRight",
-      duration: 5,
-    });
+    await handlePostPayment(idHoaDon, res, coGiaoHang);
   } catch (err: any) {
     message.error(err.response?.data?.message || "Lỗi cập nhật thanh toán chuyển khoản");
   } finally {
     loadingThanhToan.value = false;
+    processingPaidInvoiceIds.delete(idHoaDon);
   }
 };
 
@@ -974,8 +1105,10 @@ const restoreHoaDon = async () => {
       const hdRaw = res.data?.data ?? res.data;
       if (hdRaw?.trangThai === "CHO_THANH_TOAN") {
         restored.push(normalizeHoaDon(hdRaw));
+      } else if (hdRaw?.trangThai === "DA_THANH_TOAN" && (hdRaw?.phiVanChuyen ?? 0) > 0) {
+        restored.push(normalizeHoaDon(hdRaw));
       }
-      // Nếu đã thanh toán/hủy/404 → bỏ qua
+      // Nếu hủy/404 → bỏ qua
     } catch {
       // 404 hoặc lỗi mạng → bỏ qua, không hiển thị lỗi
     }
