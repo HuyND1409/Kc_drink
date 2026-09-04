@@ -178,3 +178,33 @@ export interface PayOSPaymentStatusResponse {
   amount: number;
   status: PayOSPaymentStatus;
 }
+
+export interface ThietLapGiaoHangRequest {
+  idDiaChi: number;
+  ghiChu?: string | null;
+}
+
+export interface VanDonGhnResponse {
+  idVanDon: number;
+  idHoaDon: number;
+  idDiaChi: number | null;
+  tenNguoiNhan: string;
+  sdtNguoiNhan: string;
+  diaChiGiaoHang: string;
+  provinceId: number | null;
+  districtId: number;
+  wardCode: string;
+  tenTinhThanh: string | null;
+  tenQuanHuyen: string | null;
+  tenPhuongXa: string | null;
+  phiVanChuyen: number;
+  codAmount: number;
+  insuranceValue: number;
+  maVanDonGhn: string | null;
+  trangThai: string;
+  trangThaiGhn: string | null;
+  thoiGianGiaoDuKien: string | null;
+  ghiChu: string | null;
+  ngayTao: string;
+  ngayCapNhat: string;
+}

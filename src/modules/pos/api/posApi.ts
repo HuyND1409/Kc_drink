@@ -7,6 +7,7 @@ import type {
   CapNhatToppingRequest,
   ThanhToanRequest,
   ApDungVoucherRequest,
+  ThietLapGiaoHangRequest,
 } from "../types/pos";
 
 // ============================================================
@@ -142,5 +143,36 @@ export const getVoucherKhaDung = (
     `/hoa-don/${idHoaDon}/voucher-kha-dung`,
     { params: { page, size } }
   );
+};
+
+// ============================================================
+// API: Giao hàng
+// ============================================================
+
+export const getGiaoHangHoaDon = (idHoaDon: number) => {
+  return api.get(`/hoa-don/${idHoaDon}/giao-hang`);
+};
+
+export const thietLapGiaoHangHoaDon = (
+  idHoaDon: number,
+  body: ThietLapGiaoHangRequest
+) => {
+  return api.put(`/hoa-don/${idHoaDon}/giao-hang`, body);
+};
+
+export const boGiaoHangHoaDon = (idHoaDon: number) => {
+  return api.delete(`/hoa-don/${idHoaDon}/giao-hang`);
+};
+
+export const taoDonGhnHoaDon = (idHoaDon: number) => {
+  return api.post(`/hoa-don/${idHoaDon}/giao-hang/tao-don-ghn`);
+};
+
+export const lamMoiTrangThaiGhnHoaDon = (idHoaDon: number) => {
+  return api.get(`/hoa-don/${idHoaDon}/giao-hang/trang-thai-ghn`);
+};
+
+export const huyDonGhnHoaDon = (idHoaDon: number) => {
+  return api.post(`/hoa-don/${idHoaDon}/giao-hang/huy-don-ghn`);
 };
 

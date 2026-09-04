@@ -7,14 +7,8 @@
       <!-- Header -->
       <div class="pos-left-header">
         <span class="pos-title">🛒 Bán hàng tại quầy</span>
-        <a-input-search
-          v-model:value="keyword"
-          placeholder="Tìm sản phẩm..."
-          allow-clear
-          style="width: 240px"
-          @search="onSearch"
-          @clear="onSearch"
-        />
+        <a-input-search v-model:value="keyword" placeholder="Tìm sản phẩm..." allow-clear style="width: 240px"
+          @search="onSearch" @clear="onSearch" />
       </div>
 
       <!-- Vùng scroll sản phẩm: flex:1 để pagination luôn nằm cuối -->
@@ -25,19 +19,9 @@
           </div>
 
           <div v-else class="product-grid">
-            <div
-              v-for="sp in dsSanPham"
-              :key="sp.idSanPham"
-              class="product-card"
-              @click="onClickSanPham(sp)"
-            >
+            <div v-for="sp in dsSanPham" :key="sp.idSanPham" class="product-card" @click="onClickSanPham(sp)">
               <div class="product-img-wrap">
-                <img
-                  v-if="sp.hinhAnh"
-                  :src="sp.hinhAnh"
-                  :alt="sp.tenSanPham"
-                  class="product-img"
-                />
+                <img v-if="sp.hinhAnh" :src="getSanPhamImageUrl(sp.hinhAnh)" :alt="sp.tenSanPham" class="product-img" @error="onProductImageError(sp)" />
                 <div v-else class="product-img-placeholder">
                   <span>☕</span>
                 </div>
@@ -53,14 +37,8 @@
 
       <!-- Pagination luôn nằm cuối panel trái, tách khỏi scroll area -->
       <div class="pos-pagination">
-        <a-pagination
-          :current="currentPage"
-          :page-size="pageSize"
-          :total="total"
-          size="small"
-          :show-total="(t: number) => `${t} sản phẩm`"
-          @change="onPageChange"
-        />
+        <a-pagination :current="currentPage" :page-size="pageSize" :total="total" size="small"
+          :show-total="(t: number) => `${t} sản phẩm`" @change="onPageChange" />
       </div>
     </div>
 
@@ -71,18 +49,10 @@
       <!-- ---- Tab bar hóa đơn ---- -->
       <div class="invoice-tab-bar">
         <div class="invoice-tabs">
-          <a-tooltip
-            v-for="hd in openInvoices"
-            :key="hd.idHoaDon"
-            :title="hd.maHoaDon"
-            placement="bottom"
-          >
-            <button
-              class="invoice-tab"
-              :class="{ active: hd.idHoaDon === activeInvoiceId }"
-              @click="switchInvoice(hd.idHoaDon)"
-            >
-              {{ hd.maHoaDon }}
+          <a-tooltip v-for="hd in openInvoices" :key="hd.idHoaDon" :title="hd.maHoaDon" placement="bottom">
+            <button class="invoice-tab" :class="{ active: hd.idHoaDon === activeInvoiceId }"
+              @click="switchInvoice(hd.idHoaDon)">
+              <span class="tab-text">{{ hd.maHoaDon }}</span>
             </button>
           </a-tooltip>
         </div>
@@ -90,13 +60,9 @@
         <!-- Nút tạo hóa đơn mới -->
         <a-tooltip
           :title="openInvoices.length >= MAX_OPEN_INVOICES ? 'Chỉ được mở tối đa 5 hóa đơn chờ' : 'Tạo hóa đơn mới'"
-          placement="bottom"
-        >
-          <button
-            class="invoice-tab-add"
-            :disabled="openInvoices.length >= MAX_OPEN_INVOICES || loadingTaoHD"
-            @click="onTaoHoaDon"
-          >
+          placement="bottom">
+          <button class="invoice-tab-add" :disabled="openInvoices.length >= MAX_OPEN_INVOICES || loadingTaoHD"
+            @click="onTaoHoaDon">
             <span v-if="loadingTaoHD">...</span>
             <span v-else>+</span>
           </button>
@@ -113,7 +79,7 @@
       </div>
 
       <!-- Hóa đơn đang active -->
-      <template v-else>
+      <template v-else-if="activeHoaDon">
         <!-- Header hóa đơn -->
         <div class="invoice-header">
           <div class="invoice-meta">
@@ -123,13 +89,7 @@
             <a-tag v-if="isDaThanhToan" color="success">Đã thanh toán</a-tag>
             <a-tag v-else color="processing">Đang xử lý</a-tag>
           </div>
-          <a-button
-            v-if="!isHoaDonBiKhoa"
-            type="text"
-            size="small"
-            danger
-            @click="onHuyHoaDon"
-          >
+          <a-button v-if="!isHoaDonBiKhoa" type="text" size="small" danger @click="onHuyHoaDon">
             Hủy
           </a-button>
         </div>
@@ -142,23 +102,28 @@
           <div class="customer-row">
             <template v-if="!activeHoaDon.idKhachHang">
               <span class="customer-empty-text">Khách lẻ</span>
-              <a-button type="link" size="small" @click="customerModalOpen = true" :disabled="isHoaDonBiKhoa || loadingCustomer" style="padding: 0 4px">Chọn</a-button>
+              <a-button type="link" size="small" @click="customerModalOpen = true"
+                :disabled="isHoaDonBiKhoa || loadingCustomer" style="padding: 0 4px">Chọn</a-button>
             </template>
             <template v-else>
               <div class="customer-info">
                 <span class="customer-name">{{ activeHoaDon.tenKhachHang || `Khách hàng #${activeHoaDon.idKhachHang}` }}</span>
-                <template v-if="activeHoaDon.sdtKhachHang">
-                  <span class="customer-sep">·</span>
-                  <span class="customer-phone">{{ activeHoaDon.sdtKhachHang }}</span>
-                </template>
+                <span class="customer-phone" v-if="activeHoaDon.sdtKhachHang"> - {{ activeHoaDon.sdtKhachHang }}</span>
               </div>
               <div class="customer-actions">
-                <a-button type="text" size="small" @click="onRemoveCustomer" :disabled="isHoaDonBiKhoa || loadingCustomer" class="btn-khach-le">Khách lẻ</a-button>
-                <a-button type="link" size="small" @click="customerModalOpen = true" :disabled="isHoaDonBiKhoa || loadingCustomer" style="padding: 0 4px">Đổi</a-button>
+                <a-button type="text" size="small" @click="onRemoveCustomer"
+                  :disabled="isHoaDonBiKhoa || loadingCustomer" class="btn-khach-le">Khách lẻ</a-button>
+                <a-button type="link" size="small" @click="customerModalOpen = true"
+                  :disabled="isHoaDonBiKhoa || loadingCustomer" style="padding: 0 4px">Đổi</a-button>
               </div>
             </template>
           </div>
         </div>
+
+        <!-- Giao hàng -->
+        <PosDeliverySection :key="`${activeHoaDon!.idHoaDon}-${activeHoaDon!.idKhachHang ?? 'guest'}`"
+          :hoa-don="activeHoaDon!" :disabled="isHoaDonBiKhoa || deliveryUpdating" @updated="onDeliveryInvoiceUpdated"
+          @delivery-change="onDeliveryChange" @loading-change="onDeliveryLoadingChange" />
 
         <!-- Voucher -->
         <div class="pos-voucher-section">
@@ -166,44 +131,28 @@
             <span class="voucher-label">🏷 Voucher</span>
           </div>
           <div class="voucher-row">
-            <template v-if="!activeHoaDon.idVoucher">
+            <template v-if="!activeHoaDon!.idVoucher">
               <span class="voucher-empty-text">Chưa áp dụng</span>
-              <a-button
-                type="link"
-                size="small"
-                @click="voucherModalOpen = true"
-                :disabled="isHoaDonBiKhoa || loadingVoucher || !activeHoaDon.chiTiet?.length"
-                style="padding: 0 4px"
-              >
+              <a-button type="link" size="small" @click="voucherModalOpen = true"
+                :disabled="isHoaDonBiKhoa || loadingVoucher || !activeHoaDon!.chiTiet?.length" style="padding: 0 4px">
                 Chọn
               </a-button>
             </template>
             <template v-else>
               <div class="voucher-info">
-                <span class="voucher-code">{{ activeHoaDon.maVoucher }}</span>
-                <span class="voucher-sep" v-if="activeHoaDon.tenVoucher">·</span>
-                <span class="voucher-name" v-if="activeHoaDon.tenVoucher">{{ activeHoaDon.tenVoucher }}</span>
-                <div class="voucher-discount" v-if="activeHoaDon.giamGia">Giảm {{ formatVND(activeHoaDon.giamGia) }}</div>
+                <div class="voucher-name-row">
+                  <span class="voucher-code">{{ activeHoaDon!.maVoucher }}</span>
+                  <span class="voucher-name" v-if="activeHoaDon!.tenVoucher">{{ activeHoaDon!.tenVoucher }}</span>
+                </div>
+                <div class="voucher-discount" v-if="activeHoaDon!.giamGia">Giảm {{ formatVND(activeHoaDon!.giamGia) }}</div>
               </div>
               <div class="voucher-actions">
-                <a-button
-                  type="text"
-                  size="small"
-                  danger
-                  @click="onRemoveVoucher"
-                  :disabled="isHoaDonBiKhoa || loadingVoucher"
-                  class="btn-remove-voucher"
-                >
+                <a-button type="text" size="small" danger @click="onRemoveVoucher"
+                  :disabled="isHoaDonBiKhoa || loadingVoucher" class="btn-remove-voucher">
                   Bỏ
                 </a-button>
-                <!-- Nút đổi voucher: mở lại modal, không gọi boVoucher -->
-                <a-button
-                  type="link"
-                  size="small"
-                  @click="voucherModalOpen = true"
-                  :disabled="isHoaDonBiKhoa || loadingVoucher"
-                  class="btn-remove-voucher"
-                >
+                <a-button type="link" size="small" @click="voucherModalOpen = true"
+                  :disabled="isHoaDonBiKhoa || loadingVoucher" class="btn-remove-voucher">
                   Đổi
                 </a-button>
               </div>
@@ -213,17 +162,10 @@
 
         <!-- Danh sách chi tiết -->
         <div class="invoice-items">
-          <a-empty
-            v-if="(activeHoaDon.chiTiet?.length ?? 0) === 0"
-            description="Chưa có món nào"
-            :image-style="{ height: '40px' }"
-          />
+          <a-empty v-if="(activeHoaDon!.chiTiet?.length ?? 0) === 0" description="Chưa có món nào"
+            :image-style="{ height: '40px' }" />
 
-          <div
-            v-for="ct in (activeHoaDon.chiTiet ?? [])"
-            :key="ct.idHoaDonChiTiet"
-            class="invoice-item"
-          >
+          <div v-for="ct in (activeHoaDon!.chiTiet ?? [])" :key="ct.idHoaDonChiTiet" class="invoice-item">
             <!-- Hàng 1: Tên sản phẩm + thành tiền -->
             <div class="item-row1">
               <span class="item-name">{{ ct.tenSanPham || `SP #${ct.idSanPham}` }}</span>
@@ -254,37 +196,22 @@
             <!-- Hàng 3: Tăng giảm số lượng + nút -->
             <div class="item-actions">
               <div class="item-qty">
-                <a-button
-                  size="small"
+                <a-button size="small"
                   :disabled="isHoaDonBiKhoa || ct.soLuong <= 1 || loadingCtId === ct.idHoaDonChiTiet"
-                  @click="onGiamSoLuong(ct)"
-                >−</a-button>
+                  @click="onGiamSoLuong(ct)">−</a-button>
                 <span class="qty-val">{{ ct.soLuong }}</span>
-                <a-button
-                  size="small"
-                  :disabled="isHoaDonBiKhoa || loadingCtId === ct.idHoaDonChiTiet"
-                  @click="onTangSoLuong(ct)"
-                >+</a-button>
+                <a-button size="small" :disabled="isHoaDonBiKhoa || loadingCtId === ct.idHoaDonChiTiet"
+                  @click="onTangSoLuong(ct)">+</a-button>
               </div>
 
               <div class="item-btns">
-                <a-button
-                  type="text"
-                  size="small"
-                  :disabled="isHoaDonBiKhoa"
-                  @click="openToppingModal(ct.idHoaDonChiTiet)"
-                  style="color: #1677ff; padding: 0 6px"
-                >
+                <a-button type="text" size="small" :disabled="isHoaDonBiKhoa"
+                  @click="openToppingModal(ct.idHoaDonChiTiet)" style="color: #1677ff; padding: 0 6px">
                   + Topping
                 </a-button>
-                <a-button
-                  type="text"
-                  size="small"
-                  danger
-                  :disabled="isHoaDonBiKhoa || loadingCtId === ct.idHoaDonChiTiet"
-                  @click="onXoaChiTiet(ct)"
-                  style="padding: 0 6px"
-                >
+                <a-button type="text" size="small" danger
+                  :disabled="isHoaDonBiKhoa || loadingCtId === ct.idHoaDonChiTiet" @click="onXoaChiTiet(ct)"
+                  style="padding: 0 6px">
                   Xóa
                 </a-button>
               </div>
@@ -292,71 +219,50 @@
 
             <!-- Hàng 4: Topping list -->
             <div v-if="ct.toppingList && ct.toppingList.length > 0" class="topping-tags">
-              <div
-                v-for="tp in ct.toppingList"
-                :key="tp.idHdctTopping"
-                class="topping-tag-row"
-              >
+              <div v-for="tp in ct.toppingList" :key="tp.idHdctTopping" class="topping-tag-row">
                 <!-- tenTopping chưa có trong HdctTopping response → fallback Topping #id -->
-                <span class="topping-tag-name">• {{ tp.tenTopping ?? `Topping #${tp.idTopping}` }} × {{ tp.soLuong }}</span>
+                <span class="topping-tag-name">• {{ tp.tenTopping ?? `Topping #${tp.idTopping}` }} × {{ tp.soLuong
+                  }}</span>
                 <span class="topping-tag-price">{{ formatVND(tp.thanhTien) }}</span>
-                <a-button
-                  v-if="!isHoaDonBiKhoa"
-                  type="text"
-                  size="small"
-                  danger
-                  style="padding: 0 4px; height: 20px; font-size: 11px"
-                  @click="onXoaTopping(ct, tp)"
-                >✕</a-button>
+                <a-button v-if="!isHoaDonBiKhoa" type="text" size="small" danger
+                  style="padding: 0 4px; height: 20px; font-size: 11px" @click="onXoaTopping(ct, tp)">✕</a-button>
               </div>
             </div>
           </div>
         </div>
 
-        <a-divider style="margin: 8px 0" />
-
         <!-- Tổng tiền -->
         <div class="invoice-summary">
           <div class="summary-row">
             <span class="summary-label">Tạm tính</span>
-            <span class="summary-value">{{ formatVND(activeHoaDon.tongTien) }}</span>
+            <span class="summary-value">{{ formatVND(activeHoaDon!.tongTien) }}</span>
           </div>
-          <div class="summary-row" v-if="(activeHoaDon.giamGia ?? 0) > 0">
+          <div class="summary-row" v-if="(activeHoaDon!.giamGia ?? 0) > 0">
             <span class="summary-label">Giảm giá</span>
-            <span class="summary-value discount-value">-{{ formatVND(activeHoaDon.giamGia!) }}</span>
+            <span class="summary-value discount-value">-{{ formatVND(activeHoaDon!.giamGia!) }}</span>
           </div>
-          <div class="summary-row" v-if="(activeHoaDon.phiVanChuyen ?? 0) > 0">
+          <div class="summary-row" v-if="(activeHoaDon!.phiVanChuyen ?? 0) > 0">
             <span class="summary-label">Phí vận chuyển</span>
-            <span class="summary-value">{{ formatVND(activeHoaDon.phiVanChuyen!) }}</span>
+            <span class="summary-value">{{ formatVND(activeHoaDon!.phiVanChuyen!) }}</span>
           </div>
           <div class="summary-row total-row">
             <span class="summary-label">Thành tiền</span>
-            <span class="total-amount">{{ formatVND(activeHoaDon.thanhTien ?? activeHoaDon.tongTien) }}</span>
+            <span class="total-amount">{{ formatVND(activeHoaDon!.thanhTien ?? activeHoaDon!.tongTien) }}</span>
           </div>
         </div>
 
         <!-- Nút thanh toán -->
         <div class="invoice-footer">
-          <a-button
-            type="primary"
-            size="large"
-            :disabled="isDaThanhToan || (activeHoaDon.chiTiet?.length ?? 0) === 0 || payOSDangKhoaHoaDon"
-            :loading="loadingThanhToan"
-            @click="onThanhToan"
-            class="btn-thanh-toan"
-          >
+          <a-button type="primary" size="large"
+            :disabled="isDaThanhToan || (activeHoaDon!.chiTiet?.length ?? 0) === 0 || payOSDangKhoaHoaDon || deliveryUpdating"
+            :loading="loadingThanhToan" @click="onThanhToan" class="btn-thanh-toan">
             <template v-if="isDaThanhToan">✓ Đã thanh toán</template>
             <template v-else>Tiền mặt</template>
           </a-button>
-          
-          <a-button
-            type="default"
-            size="large"
-            :disabled="isDaThanhToan || (activeHoaDon.chiTiet?.length ?? 0) === 0"
-            :loading="loadingThanhToan"
-            @click="openPayOSModal"
-            class="btn-qr"
-          >
+
+          <a-button type="default" size="large"
+            :disabled="isDaThanhToan || (activeHoaDon!.chiTiet?.length ?? 0) === 0 || deliveryUpdating"
+            :loading="loadingThanhToan" @click="openPayOSModal" class="btn-qr">
             <template v-if="payOSDangKhoaHoaDon">Xem QR chuyển khoản</template>
             <template v-else>Chuyển khoản QR</template>
           </a-button>
@@ -366,47 +272,22 @@
   </div>
 
   <!-- Modal chọn size -->
-  <SizePickerModal
-    :open="sizeModalOpen"
-    :san-pham="selectedSanPham"
-    @close="sizeModalOpen = false"
-    @confirm="onSizeConfirm"
-  />
+  <SizePickerModal :open="sizeModalOpen" :san-pham="selectedSanPham" @close="sizeModalOpen = false"
+    @confirm="onSizeConfirm" />
 
   <!-- Modal chọn topping -->
-  <ToppingPickerModal
-    :open="toppingModalOpen"
-    :id-chi-tiet="selectedChiTietId"
-    @close="toppingModalOpen = false"
-    @confirm="onToppingConfirm"
-  />
+  <ToppingPickerModal :open="toppingModalOpen" :id-chi-tiet="selectedChiTietId" @close="toppingModalOpen = false"
+    @confirm="onToppingConfirm" />
 
   <!-- Modal chọn khách hàng -->
-  <CustomerPickerModal
-    :open="customerModalOpen"
-    @close="customerModalOpen = false"
-    @select="onCustomerSelect"
-  />
+  <CustomerPickerModal :open="customerModalOpen" @close="customerModalOpen = false" @select="onCustomerSelect" />
 
   <!-- Modal áp dụng voucher -->
-  <VoucherPickerModal
-    :open="voucherModalOpen"
-    :loading="loadingVoucher"
-    :id-hoa-don="activeHoaDon?.idHoaDon"
-    :current-voucher-code="activeHoaDon?.maVoucher"
-    @close="voucherModalOpen = false"
-    @apply="onApplyVoucher"
-  />
+  <VoucherPickerModal :open="voucherModalOpen" :loading="loadingVoucher" :id-hoa-don="activeHoaDon?.idHoaDon"
+    :current-voucher-code="activeHoaDon?.maVoucher" @close="voucherModalOpen = false" @apply="onApplyVoucher" />
 
-  <PayOSPaymentModal
-    :open="payosModalOpen"
-    :hoa-don="activeHoaDon"
-    @close="payosModalOpen = false"
-    @created="onPayOSCreated"
-    @paid="onPayOSPaid"
-    @expired="onPayOSExpired"
-    @cancelled="onPayOSCancelled"
-  />
+  <PayOSPaymentModal :open="payosModalOpen" :hoa-don="activeHoaDon" @close="payosModalOpen = false"
+    @created="onPayOSCreated" @paid="onPayOSPaid" @expired="onPayOSExpired" @cancelled="onPayOSCancelled" />
 </template>
 
 <script setup lang="ts">
@@ -419,6 +300,7 @@ import ToppingPickerModal from "../components/ToppingPickerModal.vue";
 import CustomerPickerModal from "../components/CustomerPickerModal.vue";
 import VoucherPickerModal from "../components/VoucherPickerModal.vue";
 import PayOSPaymentModal from "../components/PayOSPaymentModal.vue";
+import PosDeliverySection from "../components/PosDeliverySection.vue";
 
 import {
   getSanPham,
@@ -434,9 +316,11 @@ import {
   capNhatKhachHangHoaDon,
   apDungVoucher,
   boVoucher,
+  boGiaoHangHoaDon,
 } from "../api/posApi";
+import { getSanPhamImageUrl } from "@/modules/san-pham/api/sanPhamApi";
 
-import type { SanPham, SanPhamSize, HoaDon, ChiTietHoaDon, HdctTopping, KhachHang, PayOSCreateResponse } from "../types/pos";
+import type { SanPham, SanPhamSize, HoaDon, ChiTietHoaDon, HdctTopping, KhachHang, PayOSCreateResponse, VanDonGhnResponse } from "../types/pos";
 
 // ============================================================
 // Auth
@@ -483,6 +367,22 @@ const toppingModalOpen = ref(false);
 const selectedChiTietId = ref<number | null>(null);
 
 const payosModalOpen = ref(false);
+
+// ============================================================
+// State: Giao hàng
+// ============================================================
+const deliveryUpdating = ref(false);
+const activeVanDon = ref<VanDonGhnResponse | null>(null);
+
+const onDeliveryInvoiceUpdated = (hoaDon: HoaDon) => {
+  replaceInvoice(normalizeHoaDon(hoaDon));
+};
+const onDeliveryChange = (vanDon: VanDonGhnResponse | null) => {
+  activeVanDon.value = vanDon;
+};
+const onDeliveryLoadingChange = (value: boolean) => {
+  deliveryUpdating.value = value;
+};
 
 // ============================================================
 // Computed: hóa đơn đang active
@@ -535,6 +435,7 @@ const clearInvoiceFromSession = (idHoaDon: number) => {
 const switchInvoice = (idHoaDon: number) => {
   activeInvoiceId.value = idHoaDon;
   sessionStorage.setItem(SS_ACTIVE_KEY, String(idHoaDon));
+  activeVanDon.value = null;
 };
 
 // ============================================================
@@ -583,6 +484,10 @@ const onPageChange = (page: number) => {
 // ============================================================
 // Click sản phẩm → mở modal size
 // ============================================================
+const onProductImageError = (sanPham: SanPham) => {
+  sanPham.hinhAnh = null;
+};
+
 const onClickSanPham = (sp: SanPham) => {
   if (!activeHoaDon.value) {
     message.warning("Vui lòng tạo hóa đơn trước khi thêm món");
@@ -614,11 +519,11 @@ const onSizeConfirm = async (payload: {
   try {
     const res = await themChiTiet(activeHoaDon.value.idHoaDon, {
       idSanPham: payload.sanPham.idSanPham,
-      idSize:    payload.size.idSize,
-      soLuong:   1,
-      mucDuong:  payload.mucDuong,
-      mucDa:     payload.mucDa,
-      ghiChu:    payload.ghiChu,
+      idSize: payload.size.idSize,
+      soLuong: 1,
+      mucDuong: payload.mucDuong,
+      mucDa: payload.mucDa,
+      ghiChu: payload.ghiChu,
     });
     replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
     message.success("Đã thêm món vào hóa đơn");
@@ -668,7 +573,7 @@ const onHuyHoaDon = () => {
     onOk: async () => {
       try {
         await huyHoaDon(idHoaDon);
-        
+
         // Cập nhật FE sau khi backend thành công
         const removedIdx = openInvoices.value.findIndex((hd) => hd.idHoaDon === idHoaDon);
         openInvoices.value = openInvoices.value.filter((hd) => hd.idHoaDon !== idHoaDon);
@@ -749,8 +654,17 @@ const loadingCustomer = ref(false);
 
 const onCustomerSelect = async (kh: KhachHang) => {
   if (!activeHoaDon.value) return;
+  if (activeHoaDon.value.idKhachHang === kh.idKhachHang) {
+    customerModalOpen.value = false;
+    return;
+  }
   loadingCustomer.value = true;
   try {
+    if (activeVanDon.value || (activeHoaDon.value.phiVanChuyen ?? 0) > 0) {
+      await boGiaoHangHoaDon(activeHoaDon.value.idHoaDon);
+      activeVanDon.value = null;
+      message.info("Đã bỏ giao hàng do thay đổi khách hàng");
+    }
     const res = await capNhatKhachHangHoaDon(activeHoaDon.value.idHoaDon, kh.idKhachHang);
     replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
     message.success("Đã chọn khách hàng");
@@ -766,6 +680,11 @@ const onRemoveCustomer = async () => {
   if (!activeHoaDon.value || !activeHoaDon.value.idKhachHang) return;
   loadingCustomer.value = true;
   try {
+    if (activeVanDon.value || (activeHoaDon.value.phiVanChuyen ?? 0) > 0) {
+      await boGiaoHangHoaDon(activeHoaDon.value.idHoaDon);
+      activeVanDon.value = null;
+      message.info("Đã bỏ giao hàng do thay đổi khách hàng");
+    }
     const res = await capNhatKhachHangHoaDon(activeHoaDon.value.idHoaDon, null);
     replaceInvoice(normalizeHoaDon(res.data?.data ?? res.data));
     message.success("Đã chuyển về khách lẻ");
@@ -908,6 +827,10 @@ const removePaidInvoiceFromPos = (idHoaDon: number) => {
 
 const onThanhToan = async () => {
   if (!activeHoaDon.value) return;
+  if (deliveryUpdating.value) {
+    message.warning("Vui lòng chờ cập nhật phí giao hàng");
+    return;
+  }
   const idHoaDon = activeHoaDon.value.idHoaDon;
 
   loadingThanhToan.value = true;
@@ -933,6 +856,10 @@ const onThanhToan = async () => {
 
 const openPayOSModal = () => {
   if (!activeHoaDon.value || (activeHoaDon.value.chiTiet?.length ?? 0) === 0) return;
+  if (deliveryUpdating.value) {
+    message.warning("Vui lòng chờ cập nhật phí giao hàng");
+    return;
+  }
   payosModalOpen.value = true;
 };
 
@@ -973,12 +900,12 @@ const onPayOSPaid = async (idHoaDon: number) => {
   loadingThanhToan.value = true;
   try {
     await thanhToan(idHoaDon, { hinhThucThanhToan: "CHUYEN_KHOAN" });
-    
+
     payosModalOpen.value = false;
     sessionStorage.removeItem(`pos_payos_payment_${idHoaDon}`);
-    
+
     removePaidInvoiceFromPos(idHoaDon);
-    
+
     notification.success({
       message: "Thanh toán thành công",
       description: "Hóa đơn đã được thanh toán bằng chuyển khoản.",
@@ -1295,6 +1222,13 @@ onMounted(() => {
   min-width: 0;
 }
 
+.tab-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 .invoice-tab {
   display: inline-flex;
   align-items: center;
@@ -1311,9 +1245,7 @@ onMounted(() => {
   /* Giới hạn width mỗi tab để không chiếm quá nhiều */
   max-width: 110px;
   min-width: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 0;
+  flex-shrink: 1; /* Allow shrink */
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   line-height: 1.5;
   font-family: inherit;
@@ -1403,13 +1335,12 @@ onMounted(() => {
 
 /* Khách hàng */
 .pos-customer-section {
-  padding: 10px 14px;
+  padding: 8px 14px 6px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   flex-shrink: 0;
   border-top: 1px solid #f0f0f0;
-  border-bottom: 1px solid #f0f0f0;
   margin-top: 8px;
 }
 
@@ -1421,6 +1352,8 @@ onMounted(() => {
 .customer-label {
   font-size: 11px;
   color: #8c8c8c;
+  text-transform: uppercase;
+  font-weight: 500;
 }
 
 .customer-row {
@@ -1447,14 +1380,10 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
-.customer-sep {
-  color: #bfbfbf;
-  font-size: 12px;
-}
-
 .customer-phone {
   font-size: 13px;
-  color: #262626;
+  color: #8c8c8c;
+  white-space: nowrap;
 }
 
 .customer-empty-text {
@@ -1477,7 +1406,7 @@ onMounted(() => {
 
 /* Voucher */
 .pos-voucher-section {
-  padding: 10px 14px;
+  padding: 6px 14px 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1493,6 +1422,8 @@ onMounted(() => {
 .voucher-label {
   font-size: 11px;
   color: #8c8c8c;
+  text-transform: uppercase;
+  font-weight: 500;
 }
 
 .voucher-row {
@@ -1514,24 +1445,28 @@ onMounted(() => {
   min-width: 0;
 }
 
+.voucher-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .voucher-code {
   font-size: 13px;
   font-weight: 600;
   color: #262626;
-  display: inline-block;
-}
-
-.voucher-sep {
-  color: #bfbfbf;
-  font-size: 12px;
-  margin: 0 4px;
-  display: inline-block;
+  flex-shrink: 0;
 }
 
 .voucher-name {
   font-size: 13px;
   color: #8c8c8c;
-  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .voucher-discount {
