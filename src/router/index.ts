@@ -76,6 +76,12 @@ const router = createRouter({
         // 👇 THÊM ROUTE SẢN PHẨM VÀO TRONG APPLAYOUT 👇
         { path: "san-pham", component: SanPhamListView },
 
+        {
+          path: "hoa-don",
+          component: () =>
+            import("@/modules/hoa-don/views/HoaDonListView.vue"),
+        },
+
         // 👇 THÊM ROUTE BÁN THÀNH PHẨM VÀO TRONG APPLAYOUT 👇
         // ADMIN + STAFF đều được truy cập
         { path: "ban-thanh-pham", component: BanThanhPhamListView },

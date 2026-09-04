@@ -29,15 +29,12 @@
         Sản phẩm
       </a-menu-item>
 
-      <a-menu-item key="5">
+      <a-menu-item key="hoa-don" @click="router.push('/hoa-don')">
         Hóa đơn
       </a-menu-item>
 
       <a-menu-item key="6" @click="router.push('/voucher')">
         Voucher
-      </a-menu-item>
-      <a-menu-item key="7" @click="router.push('/ghn-test')">
-        GHN test
       </a-menu-item>
       <a-sub-menu key="sub-kho">
         <template #title>
@@ -53,9 +50,6 @@
           Bán thành phẩm
         </a-menu-item>
       </a-sub-menu>
-      <a-menu-item key="payos-demo" @click="router.push('/payos-demo')">
-        Thanh toán QR demo
-      </a-menu-item>
       <a-menu-item key="nhat-ky-he-thong" v-if="isAdmin" @click="router.push('/nhat-ky-he-thong')">
         📋 Nhật ký thao tác
       </a-menu-item>
