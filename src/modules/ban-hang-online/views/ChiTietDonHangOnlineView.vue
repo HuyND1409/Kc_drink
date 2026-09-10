@@ -47,6 +47,11 @@
             </template>
           </div>
 
+          <div v-if="cancelReason" class="cancel-reason-box">
+            <span class="cancel-reason-icon">ℹ️</span>
+            <span>{{ cancelReason }}</span>
+          </div>
+
           <div v-if="canCancel || canResumePayment" class="actions-row">
             <button v-if="canResumePayment" class="brand-btn resume-btn" @click="handleResumePayment"
               :disabled="isResumingPayment || canceling">
@@ -205,6 +210,7 @@ const canceling = ref(false);
 const isResumingPayment = ref(false);
 const showCheckoutModal = ref(false);
 const resumePaymentData = ref<any>(null);
+const cancelReason = ref('');
 
 let cleanupAppSync: (() => void) | null = null;
 let countdownInterval: any = null;
@@ -223,13 +229,33 @@ const reconcilePayment = async () => {
   try {
     const res = await getOnlinePaymentStatus(idHoaDon);
     if (res.data.code === 200) {
-      const data = res.data.data as any;
-      const isPaid = data.daThanhToan || data.trangThaiHoaDon === 'DA_THANH_TOAN' || data.status === 'PAID';
+      const data = res.data.data;
+      const isPaid =
+        data.daThanhToan ||
+        data.trangThaiDonHang === 'DA_THANH_TOAN' ||
+        data.payosStatus === 'PAID';
+      const isCancelled =
+        data.trangThaiDonHang === 'DA_HUY' ||
+        data.payosStatus === 'CANCELLED' ||
+        data.payosStatus === 'EXPIRED';
+
       if (isPaid) {
         stopCountdown();
         stopRevalidate();
         showCheckoutModal.value = false;
         resumePaymentData.value = null;
+        cancelReason.value = '';
+        await doFetchDetail(true);
+      } else if (isCancelled) {
+        // Tải lại chi tiết đơn ngay, không cần F5
+        const POS_FALLBACK =
+          'Phiên QR đã được hủy vì nguyên liệu còn lại được ưu tiên cho khách đang thanh toán tại quầy.' +
+          ' Đơn vẫn nằm trong danh sách chờ; bạn có thể thử thanh toán lại khi còn hàng.';
+        if (data.maLyDoCho === 'POS_UU_TIEN') {
+          cancelReason.value = data.lyDoCho || POS_FALLBACK;
+        } else if (data.lyDoCho) {
+          cancelReason.value = data.lyDoCho;
+        }
         await doFetchDetail(true);
       }
     }
@@ -373,6 +399,7 @@ const canResumePayment = computed(() => {
   if (order.value.trangThai !== 'CHO_THANH_TOAN') return false;
   if (order.value.payosStatus === 'PAID') return false;
   if (order.value.payosStatus === 'EXPIRED') return false;
+  // Nếu QR bị hủy bởi POS (maLyDoCho === 'POS_UU_TIEN') vẫn giữ nút thanh toán lại
   return true;
 });
 
@@ -388,14 +415,21 @@ const handleResumePayment = async () => {
     const res = await createOnlinePayment(idHoaDon);
     if (res.data.code === 200) {
       const data = res.data.data as any;
-      if (data.status === 'PAID' || data.trangThaiDonHang === 'DA_THANH_TOAN' || data.daThanhToan) {
+      const isPaid =
+        data.daThanhToan ||
+        data.trangThaiDonHang === 'DA_THANH_TOAN' ||
+        data.payosStatus === 'PAID';
+      if (isPaid) {
         showCheckoutModal.value = false;
         resumePaymentData.value = null;
+        cancelReason.value = '';
         stopCountdown();
         message.success('Đơn hàng đã được thanh toán');
         await doFetchDetail(true);
         return;
       }
+      // Xóa thông báo lý do cũ khi tạo QR mới thành công
+      cancelReason.value = '';
       resumePaymentData.value = data;
       showCheckoutModal.value = true;
     } else {
@@ -416,7 +450,13 @@ const cancelOrder = async () => {
     const res = await cancelOnlineOrder(idHoaDon);
     if (res.data.code === 200) {
       const data = res.data.data as any;
-      if (data && (data.daThanhToan || data.trangThaiDonHang === 'DA_THANH_TOAN' || data.status === 'PAID')) {
+      const isPaid =
+        data && (
+          data.daThanhToan ||
+          data.trangThaiDonHang === 'DA_THANH_TOAN' ||
+          data.payosStatus === 'PAID'
+        );
+      if (isPaid) {
         message.success('Đơn hàng đã được thanh toán');
         stopCountdown();
         doFetchDetail(true);
@@ -611,6 +651,25 @@ const mapShippingStatus = (status: string | null | undefined) => {
 .cod-badge {
   background: #E6F4EA;
   color: #2D7D46;
+}
+
+.cancel-reason-box {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #FFF8F0;
+  border: 1px solid #F5C97A;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #6B4226;
+  line-height: 1.6;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.cancel-reason-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .actions-row {

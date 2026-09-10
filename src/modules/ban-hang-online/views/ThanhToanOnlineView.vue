@@ -25,9 +25,12 @@
         
         <div v-else-if="status === 'CANCELLED'" class="cancelled-state">
           <div class="cancelled-icon">✕</div>
-          <h3>Thanh toán đã hủy</h3>
-          <p>Bạn đã hủy thanh toán cho đơn hàng này.</p>
-          <button class="back-btn" @click="router.push('/shop')">Quay lại cửa hàng</button>
+          <h3>Phiên thanh toán đã kết thúc</h3>
+          <p v-if="cancelReason" class="cancel-reason-text">{{ cancelReason }}</p>
+          <p v-else>Bạn đã hủy thanh toán cho đơn hàng này.</p>
+          <button class="back-btn" @click="router.push('/shop/orders/' + idHoaDon)">
+            Xem đơn hàng
+          </button>
         </div>
 
         <div v-else class="pending-state">
@@ -73,6 +76,7 @@ const idHoaDon = Number(route.params.idHoaDon);
 const checkoutUrl = ref('');
 const qrCode = ref('');
 const status = ref('PENDING'); // PENDING, PAID, CANCELLED
+const cancelReason = ref('');
 const loading = ref(true);
 const error = ref('');
 let pollInterval: any = null;
@@ -123,21 +127,47 @@ const initPayment = async () => {
   }
 };
 
+const applyStatusData = (data: any) => {
+  const isPaid =
+    data.daThanhToan === true ||
+    data.trangThaiDonHang === 'DA_THANH_TOAN' ||
+    data.payosStatus === 'PAID';
+
+  if (isPaid) {
+    handlePaid();
+    return;
+  }
+
+  const isCancelled =
+    data.trangThaiDonHang === 'DA_HUY' ||
+    data.payosStatus === 'CANCELLED' ||
+    data.payosStatus === 'EXPIRED';
+
+  if (isCancelled) {
+    const POS_FALLBACK =
+      'Phiên QR đã được hủy vì nguyên liệu còn lại được ưu tiên cho khách đang thanh toán tại quầy.' +
+      ' Đơn vẫn nằm trong danh sách chờ; bạn có thể thử thanh toán lại khi còn hàng.';
+    if (data.maLyDoCho === 'POS_UU_TIEN') {
+      cancelReason.value = data.lyDoCho || POS_FALLBACK;
+    } else if (data.lyDoCho) {
+      cancelReason.value = data.lyDoCho;
+    } else {
+      cancelReason.value = '';
+    }
+    qrCode.value = '';
+    checkoutUrl.value = '';
+    status.value = 'CANCELLED';
+    stopPolling();
+  }
+};
+
 const startPolling = () => {
   if (pollInterval) clearInterval(pollInterval);
   pollInterval = setInterval(async () => {
     try {
       const res = await getOnlinePaymentStatus(idHoaDon);
       if (res.data.code === 200) {
-        const isPaid = res.data.data.daThanhToan;
-        const hdStatus = res.data.data.trangThaiHoaDon;
-        
-        if (isPaid || hdStatus === 'DA_THANH_TOAN') {
-          handlePaid();
-        } else if (hdStatus === 'DA_HUY' || hdStatus === 'CANCELLED') {
-          status.value = 'CANCELLED';
-          stopPolling();
-        }
+        applyStatusData(res.data.data);
       }
     } catch (err) {
       console.error('Lỗi khi poll trạng thái:', err);
@@ -306,6 +336,13 @@ const handleCancel = async () => {
   padding: 10px 24px;
   border-radius: 4px;
   cursor: pointer;
+}
+.cancel-reason-text {
+  font-size: 14px;
+  color: #6B655F;
+  line-height: 1.6;
+  max-width: 380px;
+  margin: 0 auto 16px;
 }
 .mt-4 { margin-top: 16px; }
 </style>

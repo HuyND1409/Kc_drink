@@ -174,8 +174,17 @@ export interface PayOSCreateResponse {
 }
 
 export interface TrangThaiThanhToanOnlineResponse {
+  idHoaDon?: number;
+  maHoaDon?: string;
+  trangThaiDonHang: string;
+  payosOrderCode?: number | null;
+  amount?: number | null;
+  payosStatus?: string | null;
   daThanhToan: boolean;
-  trangThaiHoaDon?: string;
+  doUuTien?: number;
+  maLyDoCho?: string | null;
+  lyDoCho?: string | null;
+  payosExpiresAt?: string | null;
 }
 
 export interface ChiTietDonHangOnlineResponse {
@@ -204,6 +213,9 @@ export interface ChiTietDonHangOnlineResponse {
   maVanDonGhn: string | null;
   trangThaiGhn: string | null;
   thoiGianGiaoDuKien: string | null;
+  doUuTien?: number;
+  maLyDoCho?: string | null;
+  lyDoCho?: string | null;
   chiTiet: {
     idHoaDonChiTiet: number;
     idSanPham: number;

@@ -25,10 +25,17 @@
 
           <div v-else-if="paymentStatus === 'CANCELLED'" class="cancelled-state center-content">
             <div class="cancelled-icon">✕</div>
-            <h3>Thanh toán đã hủy</h3>
-            <p>Bạn đã hủy thanh toán cho đơn hàng này.</p>
-            <p v-if="redirectCount > 0" class="redirect-text">Tự động quay lại cửa hàng sau {{ redirectCount }} giây.</p>
-            <button class="brand-btn mt-4" @click="goToShop">Quay lại cửa hàng</button>
+            <template v-if="cancelReason">
+              <h3>Phiên thanh toán đã bị hủy</h3>
+              <p class="cancel-reason-text">{{ cancelReason }}</p>
+              <button class="brand-btn mt-4" @click="viewOrder">Xem đơn hàng</button>
+            </template>
+            <template v-else>
+              <h3>Thanh toán đã hủy</h3>
+              <p>Bạn đã hủy thanh toán cho đơn hàng này.</p>
+              <p v-if="redirectCount > 0" class="redirect-text">Tự động quay lại cửa hàng sau {{ redirectCount }} giây.</p>
+              <button class="brand-btn mt-4" @click="goToShop">Quay lại cửa hàng</button>
+            </template>
           </div>
 
           <div v-else-if="paymentStatus === 'PAID'" class="success-content center-content">
@@ -348,6 +355,9 @@ const payosExpiresAt = ref<string | null>(null);
 const remainingSeconds = ref(0);
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
+// Lý do hủy QR (dùng khi BE trả lyDoCho hoặc maLyDoCho === 'POS_UU_TIEN')
+const cancelReason = ref('');
+
 const formattedRemaining = computed(() => {
   const minutes = Math.floor(remainingSeconds.value / 60);
   const seconds = remainingSeconds.value % 60;
@@ -476,6 +486,7 @@ const resetFlow = () => {
   description.value = '';
   paymentStatus.value = 'PENDING';
   paymentError.value = '';
+  cancelReason.value = '';
   payosExpiresAt.value = null;
   remainingSeconds.value = 0;
   stopCountdown();
@@ -676,6 +687,63 @@ const initPayment = async () => {
   }
 };
 
+// --- Hàm xử lý response payment-status dùng chung ---
+// Trả về true nếu đã xử lý trạng thái kết thúc (paid hoặc cancelled)
+const handlePaymentStatusData = (data: any): boolean => {
+  const isPaid =
+    data.daThanhToan === true ||
+    data.trangThaiDonHang === 'DA_THANH_TOAN' ||
+    data.payosStatus === 'PAID';
+
+  if (isPaid) {
+    handlePaid();
+    return true;
+  }
+
+  const isCancelled =
+    data.trangThaiDonHang === 'DA_HUY' ||
+    data.payosStatus === 'CANCELLED' ||
+    data.payosStatus === 'EXPIRED';
+
+  if (isCancelled) {
+    stopPolling();
+    stopCountdown();
+
+    // Xác định lý do
+    const POS_FALLBACK =
+      'Phiên QR đã được hủy vì nguyên liệu còn lại được ưu tiên cho khách đang thanh toán tại quầy.' +
+      ' Đơn vẫn nằm trong danh sách chờ; bạn có thể thử thanh toán lại khi còn hàng.';
+    const DEFAULT_FALLBACK = 'Phiên thanh toán đã bị hủy hoặc hết hạn.';
+
+    if (data.maLyDoCho === 'POS_UU_TIEN') {
+      cancelReason.value = data.lyDoCho || POS_FALLBACK;
+    } else if (data.lyDoCho) {
+      cancelReason.value = data.lyDoCho;
+    } else {
+      cancelReason.value = '';
+    }
+
+    // Ẩn QR
+    qrCode.value = '';
+    checkoutUrl.value = '';
+    payosExpiresAt.value = null;
+
+    paymentStatus.value = 'CANCELLED';
+
+    // Phát sự kiện cập nhật một lần
+    notifyDataChanged('ONLINE_ORDER_UPDATED', { idHoaDon: idHoaDon.value });
+
+    // Nếu POS hủy: không chạy bộ đếm quay về cửa hàng
+    if (data.maLyDoCho !== 'POS_UU_TIEN' && !cancelReason.value) {
+      // Khách chủ động hủy được xử lý qua handleCancelOrder, không chạy đếm ở đây
+    }
+
+    return true;
+  }
+
+  return false;
+};
+
 const startPolling = () => {
   if (pollInterval) clearInterval(pollInterval);
   pollInterval = setInterval(async () => {
@@ -683,15 +751,7 @@ const startPolling = () => {
     try {
       const res = await getOnlinePaymentStatus(idHoaDon.value);
       if (res.data.code === 200) {
-        const isPaid = res.data.data.daThanhToan;
-        const hdStatus = res.data.data.trangThaiHoaDon;
-
-        if (isPaid || hdStatus === 'DA_THANH_TOAN') {
-          handlePaid();
-        } else if (hdStatus === 'DA_HUY' || hdStatus === 'CANCELLED') {
-          paymentStatus.value = 'CANCELLED';
-          stopPolling();
-        }
+        handlePaymentStatusData(res.data.data);
       }
     } catch (err) {
       console.error('Lỗi khi poll trạng thái:', err);
@@ -744,14 +804,7 @@ const checkCurrentStatusImmediate = async () => {
   try {
     const res = await getOnlinePaymentStatus(idHoaDon.value);
     if (res.data.code === 200) {
-      const isPaid = res.data.data.daThanhToan;
-      const hdStatus = res.data.data.trangThaiHoaDon;
-      if (isPaid || hdStatus === 'DA_THANH_TOAN') {
-        handlePaid();
-      } else if (hdStatus === 'DA_HUY' || hdStatus === 'CANCELLED') {
-        paymentStatus.value = 'CANCELLED';
-        stopPolling();
-      }
+      handlePaymentStatusData(res.data.data);
     }
   } catch (err) {
     console.error('Lỗi check status:', err);
@@ -1425,6 +1478,15 @@ onUnmounted(() => {
   font-size: 12px;
   color: #746B63;
   margin-top: 8px;
+}
+
+.cancel-reason-text {
+  font-size: 14px;
+  color: #6B655F;
+  line-height: 1.6;
+  max-width: 400px;
+  text-align: center;
+  padding: 0 8px;
 }
 
 @keyframes pulse {
