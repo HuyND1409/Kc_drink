@@ -16,3 +16,7 @@ export const getGiaoHangHoaDon = (idHoaDon: number) => {
 export const lamMoiTrangThaiGhn = (idHoaDon: number) => {
   return api.get(`/hoa-don/${idHoaDon}/giao-hang/trang-thai-ghn`);
 };
+
+export const giaLapTrangThaiGhn = (idHoaDon: number, trangThaiGhn: string) => {
+  return api.post(`/hoa-don/${idHoaDon}/giao-hang/gia-lap-trang-thai/${trangThaiGhn}`);
+};

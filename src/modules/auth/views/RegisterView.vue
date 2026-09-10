@@ -47,7 +47,7 @@
 
         <div class="login-link">
           <span style="color: #8c8c8c;">Đã có tài khoản? </span>
-          <router-link to="/login" style="font-weight: 500;">Đăng nhập</router-link>
+          <router-link :to="loginLink" style="font-weight: 500;">Đăng nhập</router-link>
         </div>
 
       </a-form>
@@ -56,15 +56,21 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { reactive, ref, computed } from "vue";
 import { message } from "ant-design-vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
 import api from "@/api/axios";
 
 const router = useRouter();
+const route = useRoute();
 const loading = ref(false);
 const form = reactive({ username: "", email: "", password: "", confirmPassword: "" });
+
+// Nếu đến từ shop (from=shop) -> đăng nhập về /shop/login, ngược lại /login
+const loginLink = computed(() =>
+  route.query.from === "shop" ? "/shop/login" : "/login"
+);
 
 const handleRegister = async () => {
   if (!form.username || !form.email || !form.password) {
@@ -87,7 +93,7 @@ const handleRegister = async () => {
     });
 
     message.success("Tạo tài khoản thành công! Vui lòng đăng nhập.");
-    router.push("/login");
+    router.push(loginLink.value);
 
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {

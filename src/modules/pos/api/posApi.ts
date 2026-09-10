@@ -1,4 +1,5 @@
 import api from "@/api/axios";
+import { notifyDataChanged } from "@/utils/appSync";
 import type {
   TaoHoaDonRequest,
   ThemChiTietRequest,
@@ -60,6 +61,15 @@ export const getSanPhamSize = (idSanPham: number) => {
 
 export const taoHoaDon = (body: TaoHoaDonRequest) => {
   return api.post("/hoa-don/offline", body);
+};
+
+export const getHoaDonOnline = (params: any) => {
+  return api.get("/hoa-don", {
+    params: {
+      ...params,
+      loaiHoaDon: "ONLINE"
+    }
+  });
 };
 
 export const getHoaDonById = (idHoaDon: number) => {
@@ -164,15 +174,40 @@ export const boGiaoHangHoaDon = (idHoaDon: number) => {
   return api.delete(`/hoa-don/${idHoaDon}/giao-hang`);
 };
 
-export const taoDonGhnHoaDon = (idHoaDon: number) => {
-  return api.post(`/hoa-don/${idHoaDon}/giao-hang/tao-don-ghn`);
+export const tiepNhanDonOnline = async (idHoaDon: number) => {
+  const res = await api.post(`/hoa-don/${idHoaDon}/giao-hang/tiep-nhan`);
+  notifyDataChanged("GHN_UPDATED");
+  return res;
 };
 
-export const lamMoiTrangThaiGhnHoaDon = (idHoaDon: number) => {
-  return api.get(`/hoa-don/${idHoaDon}/giao-hang/trang-thai-ghn`);
+export const taoDonGhnHoaDon = async (idHoaDon: number) => {
+  const res = await api.post(`/hoa-don/${idHoaDon}/giao-hang/tao-don-ghn`);
+  notifyDataChanged("GHN_UPDATED");
+  return res;
 };
 
-export const huyDonGhnHoaDon = (idHoaDon: number) => {
-  return api.post(`/hoa-don/${idHoaDon}/giao-hang/huy-don-ghn`);
+export const lamMoiTrangThaiGhnHoaDon = async (idHoaDon: number) => {
+  const res = await api.get(`/hoa-don/${idHoaDon}/giao-hang/trang-thai-ghn`);
+  notifyDataChanged("GHN_UPDATED");
+  return res;
+};
+
+export const huyDonGhnHoaDon = async (idHoaDon: number) => {
+  const res = await api.post(`/hoa-don/${idHoaDon}/giao-hang/huy-don-ghn`);
+  notifyDataChanged("GHN_UPDATED");
+  return res;
+};
+
+export const giaLapTrangThaiGhnHoaDon = async (
+  idHoaDon: number,
+  trangThaiGhn: string
+) => {
+  const res = await api.post(
+    `/hoa-don/${idHoaDon}/giao-hang/gia-lap-trang-thai/${trangThaiGhn}`
+  );
+
+  notifyDataChanged("GHN_UPDATED");
+
+  return res;
 };
 

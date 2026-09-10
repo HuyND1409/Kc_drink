@@ -1,4 +1,5 @@
 import api from "@/api/axios";
+import { notifyDataChanged } from "@/utils/appSync";
 import type {
   SanPhamRequest,
   SizeRequest,
@@ -23,20 +24,28 @@ export const getSanPham = (
   });
 };
 
-export const createSanPham = (data: SanPhamRequest) => {
-  return api.post("/san-pham", data);
+export const createSanPham = async (data: SanPhamRequest) => {
+  const res = await api.post("/san-pham", data);
+  notifyDataChanged("PRODUCT_UPDATED");
+  return res;
 };
 
-export const updateSanPham = (id: number, data: SanPhamRequest) => {
-  return api.put(`/san-pham/${id}`, data);
+export const updateSanPham = async (id: number, data: SanPhamRequest) => {
+  const res = await api.put(`/san-pham/${id}`, data);
+  notifyDataChanged("PRODUCT_UPDATED");
+  return res;
 };
 
-export const lockSanPham = (id: number) => {
-  return api.patch(`/san-pham/${id}/lock`);
+export const lockSanPham = async (id: number) => {
+  const res = await api.patch(`/san-pham/${id}/lock`);
+  notifyDataChanged("PRODUCT_UPDATED");
+  return res;
 };
 
-export const unlockSanPham = (id: number) => {
-  return api.patch(`/san-pham/${id}/unlock`);
+export const unlockSanPham = async (id: number) => {
+  const res = await api.patch(`/san-pham/${id}/unlock`);
+  notifyDataChanged("PRODUCT_UPDATED");
+  return res;
 };
 
 // ============================================================
@@ -60,8 +69,10 @@ export const uploadSanPhamImage = (
     }
   );
 };
-export const deleteSanPhamImage = (idSanPham: number) => {
-  return api.delete(`/san-pham/${idSanPham}/hinh-anh`);
+export const deleteSanPhamImage = async (idSanPham: number) => {
+  const res = await api.delete(`/san-pham/${idSanPham}/hinh-anh`);
+  notifyDataChanged("PRODUCT_UPDATED");
+  return res;
 };
 
 export const getSanPhamImageUrl = (path: string | null | undefined): string => {
@@ -85,12 +96,16 @@ export const getAllSize = () => {
   return api.get("/size");
 };
 
-export const createSize = (data: SizeRequest) => {
-  return api.post("/size", data);
+export const createSize = async (data: SizeRequest) => {
+  const res = await api.post("/size", data);
+  notifyDataChanged("SIZE_UPDATED");
+  return res;
 };
 
-export const updateSize = (id: number, data: SizeRequest) => {
-  return api.put(`/size/${id}`, data);
+export const updateSize = async (id: number, data: SizeRequest) => {
+  const res = await api.put(`/size/${id}`, data);
+  notifyDataChanged("SIZE_UPDATED");
+  return res;
 };
 
 // ============================================================
@@ -101,25 +116,31 @@ export const getSanPhamSizeByProduct = (idSanPham: number) => {
   return api.get(`/san-pham-size/san-pham/${idSanPham}`);
 };
 
-export const createSanPhamSize = (
+export const createSanPhamSize = async (
   idSanPham: number,
   idSize: number,
   phuThu: number
 ) => {
-  return api.post("/san-pham-size", { idSanPham, idSize, phuThu });
+  const res = await api.post("/san-pham-size", { idSanPham, idSize, phuThu });
+  notifyDataChanged("PRODUCT_UPDATED");
+  return res;
 };
 
-export const deleteSanPhamSize = (id: number) => {
-  return api.delete(`/san-pham-size/${id}`);
+export const deleteSanPhamSize = async (id: number) => {
+  const res = await api.delete(`/san-pham-size/${id}`);
+  notifyDataChanged("PRODUCT_UPDATED");
+  return res;
 };
 
-export const updateSanPhamSize = (
+export const updateSanPhamSize = async (
   id: number,
   idSanPham: number,
   idSize: number,
   phuThu: number
 ) => {
-  return api.put(`/san-pham-size/${id}`, { idSanPham, idSize, phuThu });
+  const res = await api.put(`/san-pham-size/${id}`, { idSanPham, idSize, phuThu });
+  notifyDataChanged("PRODUCT_UPDATED");
+  return res;
 };
 
 // ============================================================

@@ -19,7 +19,7 @@
         </a-button>
 
         <div class="back-to-login">
-          <router-link to="/login">← Quay lại đăng nhập</router-link>
+          <router-link :to="backLink">← Quay lại đăng nhập</router-link>
         </div>
 
       </a-form>
@@ -28,17 +28,24 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { reactive, ref, computed } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
 import { message } from "ant-design-vue";
+import api from "@/api/axios";
 
 const router = useRouter();
+const route = useRoute();
 const loading = ref(false);
 
 const form = reactive({
   email: "",
 });
+
+// Nếu đến từ shop (from=shop) -> quay về /shop/login, ngược lại /login
+const backLink = computed(() =>
+  route.query.from === "shop" ? "/shop/login" : "/login"
+);
 
 const handleForgotPassword = async () => {
   if (!form.email.trim()) {
@@ -56,17 +63,16 @@ const handleForgotPassword = async () => {
   loading.value = true;
 
   try {
-    // Gọi thẳng đến API backend trên cổng 8080.
-    // Nếu project của bạn có baseURL khác, hãy đổi URL tại đây.
-    const response = await axios.post("http://localhost:8080/api/auth/forgot-password", {
+    // Dùng api client (baseURL được cấu hình sẵn, không gọi cứng localhost)
+    const response = await api.post("/auth/forgot-password", {
       email: form.email.trim()
     });
 
     message.success(response.data.message || "Mật khẩu mới đã được gửi vào email của bạn!");
 
-    // Đẩy user về lại trang đăng nhập sau khi gửi mail thành công
+    // Đẩy user về trang đăng nhập phù hợp sau khi gửi mail thành công
     setTimeout(() => {
-      router.push("/login");
+      router.push(backLink.value);
     }, 1500);
 
   } catch (error: unknown) {

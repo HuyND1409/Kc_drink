@@ -3,7 +3,7 @@
 
     <template #title>
       <span style="font-size:22px;font-weight:700">
-        🧪 Quản lý kho & Nguyên liệu
+        Nguyên liệu
       </span>
     </template>
 
@@ -11,41 +11,21 @@
 
       <div class="toolbar-left">
 
-        <a-input-search
-          v-model:value="keyword"
-          placeholder="Tìm theo tên nguyên liệu..."
-          allow-clear
-          style="width:300px"
-          @search="onSearch"
-        />
+        <a-input-search v-model:value="keyword" placeholder="Tìm theo tên nguyên liệu..." allow-clear
+          style="width:300px" @search="onSearch" />
 
-        <a-select
-          v-model:value="trangThai"
-          placeholder="Trạng thái"
-          allow-clear
-          style="width:160px"
-          @change="onSearch"
-        >
+        <a-select v-model:value="trangThai" placeholder="Trạng thái" allow-clear style="width:160px" @change="onSearch">
           <a-select-option :value="1">Hoạt động</a-select-option>
           <a-select-option :value="0">Đã khóa</a-select-option>
         </a-select>
 
-        <a-select
-          v-model:value="sortBy"
-          placeholder="Sắp xếp theo"
-          style="width:170px"
-          @change="loadData"
-        >
+        <a-select v-model:value="sortBy" placeholder="Sắp xếp theo" style="width:170px" @change="loadData">
           <a-select-option value="idNguyenLieu">Mã NL</a-select-option>
           <a-select-option value="tenNguyenLieu">Tên NL</a-select-option>
           <a-select-option value="tongTonKho">Tồn kho</a-select-option>
         </a-select>
 
-        <a-select
-          v-model:value="direction"
-          style="width:120px"
-          @change="loadData"
-        >
+        <a-select v-model:value="direction" style="width:120px" @change="loadData">
           <a-select-option value="asc">Tăng dần</a-select-option>
           <a-select-option value="desc">Giảm dần</a-select-option>
         </a-select>
@@ -81,40 +61,20 @@
     </div>
 
     <!-- Bảng danh sách nguyên liệu -->
-    <NguyenLieuTable
-      :data="dsNguyenLieu"
-      :loading="loading"
-      @viewLo="onViewLo"
-      @lock="onLock"
-      @unlock="onUnlock"
-    />
+    <NguyenLieuTable :data="dsNguyenLieu" :loading="loading" @viewLo="onViewLo" @lock="onLock" @unlock="onUnlock" />
 
     <!-- Phân trang -->
     <div style="display:flex; justify-content:flex-end; margin-top:20px;">
-      <a-pagination
-        :current="currentPage"
-        :pageSize="pageSize"
-        :total="total"
-        show-size-changer
-        :show-total="(total: number) => `Tổng ${total} nguyên liệu`"
-        @change="onPageChange"
-      />
+      <a-pagination :current="currentPage" :pageSize="pageSize" :total="total" show-size-changer
+        :show-total="(total: number) => `Tổng ${total} nguyên liệu`" @change="onPageChange" />
     </div>
 
     <!-- Modal thêm nguyên liệu -->
-    <NguyenLieuForm
-      :open="openModal"
-      @close="openModal = false"
-      @save="saveNguyenLieu"
-    />
+    <NguyenLieuForm :open="openModal" @close="openModal = false" @save="saveNguyenLieu" />
 
     <!-- Drawer xem lô hàng & nhập kho -->
-    <LoNguyenLieuDrawer
-      :open="openDrawer"
-      :nguyenLieu="selectedNguyenLieu"
-      @close="openDrawer = false"
-      @success="loadData"
-    />
+    <LoNguyenLieuDrawer :open="openDrawer" :nguyenLieu="selectedNguyenLieu" @close="openDrawer = false"
+      @success="loadData" />
 
   </a-card>
 </template>

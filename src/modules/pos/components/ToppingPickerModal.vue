@@ -1,21 +1,11 @@
 <template>
-  <a-modal
-    :open="open"
-    title="Thêm topping"
-    :footer="null"
-    width="460px"
-    @cancel="$emit('close')"
-  >
+  <a-modal :open="open" title="Thêm topping" :footer="null" width="460px" @cancel="$emit('close')">
     <a-spin :spinning="loading">
       <a-empty v-if="!loading && toppings.length === 0" description="Không có topping khả dụng" />
 
       <div v-else class="topping-list">
-        <div
-          v-for="t in toppings"
-          :key="t.idTopping"
-          class="topping-item"
-          :class="{ 'topping-item--oot': t.tongTonKho <= 0 }"
-        >
+        <div v-for="t in toppings" :key="t.idTopping" class="topping-item"
+          :class="{ 'topping-item--oot': t.tongTonKho <= 0 }">
           <div class="topping-info">
             <span class="topping-name">{{ t.tenTopping }}</span>
             <span class="topping-price">{{ formatVND(t.giaTopping) }}</span>
@@ -27,27 +17,32 @@
             </span>
           </div>
           <div class="topping-qty">
+            <a-button
+              size="small"
+              :disabled="t.tongTonKho <= 0 || (quantities[t.idTopping] || 0) <= 0"
+              @click="onDecreaseQty(t)"
+            >−</a-button>
             <a-input-number
               v-model:value="quantities[t.idTopping]"
               :min="0"
-              :max="t.tongTonKho"
               :disabled="t.tongTonKho <= 0"
               size="small"
-              style="width: 70px"
+              style="width: 44px; text-align: center; margin: 0 4px;"
+              :controls="false"
               @change="(val: number | null) => onQtyChange(t, val)"
             />
+            <a-button
+              size="small"
+              :disabled="t.tongTonKho <= 0"
+              @click="onIncreaseQty(t)"
+            >+</a-button>
           </div>
         </div>
       </div>
 
       <div v-if="toppings.length > 0" style="margin-top: 16px; text-align: right;">
         <a-button @click="$emit('close')" style="margin-right: 8px">Hủy</a-button>
-        <a-button
-          type="primary"
-          :loading="saving"
-          :disabled="!hasSelection"
-          @click="onConfirm"
-        >
+        <a-button type="primary" :loading="saving" :disabled="!hasSelection" @click="onConfirm">
           Xác nhận
         </a-button>
       </div>
@@ -64,13 +59,14 @@ import type { Topping } from "@/modules/topping/types/topping";
 const props = defineProps<{
   open: boolean;
   idChiTiet: number | null;
+  existingToppings?: any[];
 }>();
 
 const emit = defineEmits<{
   (e: "close"): void;
   (
     e: "confirm",
-    payload: { idTopping: number; soLuong: number; donGia: number }[]
+    payload: { idTopping: number; soLuong: number; donGia: number; existingQty: number; idHdctTopping?: number }[]
   ): void;
 }>();
 
@@ -79,18 +75,39 @@ const quantities = reactive<Record<number, number>>({});
 const loading = ref(false);
 const saving = ref(false);
 
-const hasSelection = computed(() =>
-  Object.values(quantities).some((q) => q > 0)
-);
+const hasSelection = computed(() => {
+  return toppings.value.some((t) => {
+    const existing = props.existingToppings?.find((et: any) => et.idTopping === t.idTopping);
+    const existingQty = existing ? existing.soLuong : 0;
+    const desiredQty = quantities[t.idTopping] || 0;
+    return desiredQty !== existingQty;
+  });
+});
 
 // Clamp số lượng về [0, tongTonKho] khi user nhập tay vượt tồn
 const onQtyChange = (t: Topping, val: number | null) => {
   const raw = val ?? 0;
   if (raw > t.tongTonKho) {
     quantities[t.idTopping] = t.tongTonKho;
-    message.warning(`Topping "${t.tenTopping}" chỉ còn ${t.tongTonKho}`);
+    message.warning(`Topping ${t.tenTopping} chỉ còn ${t.tongTonKho} phần khả dụng.`);
   } else if (raw < 0) {
     quantities[t.idTopping] = 0;
+  }
+};
+
+const onIncreaseQty = (t: Topping) => {
+  const current = quantities[t.idTopping] || 0;
+  if (current >= t.tongTonKho) {
+    message.warning(`Topping ${t.tenTopping} chỉ còn ${t.tongTonKho} phần khả dụng.`);
+    return;
+  }
+  quantities[t.idTopping] = current + 1;
+};
+
+const onDecreaseQty = (t: Topping) => {
+  const current = quantities[t.idTopping] || 0;
+  if (current > 0) {
+    quantities[t.idTopping] = current - 1;
   }
 };
 
@@ -108,9 +125,10 @@ watch(
           const res = await getTopping("", 1, 0, 100);
           const data = res.data?.data?.content ?? res.data?.data ?? [];
           toppings.value = Array.isArray(data) ? data : [];
-          // Khởi tạo quantity = 0 cho mỗi topping
+          // Khởi tạo quantity = existing hoặc 0
           toppings.value.forEach((t) => {
-            quantities[t.idTopping] = 0;
+            const existing = props.existingToppings?.find((et: any) => et.idTopping === t.idTopping);
+            quantities[t.idTopping] = existing ? existing.soLuong : 0;
           });
         } catch (err: any) {
           message.error(
@@ -122,7 +140,8 @@ watch(
       } else {
         // Đã load rồi, chỉ reset qty
         toppings.value.forEach((t) => {
-          quantities[t.idTopping] = 0;
+          const existing = props.existingToppings?.find((et: any) => et.idTopping === t.idTopping);
+          quantities[t.idTopping] = existing ? existing.soLuong : 0;
         });
       }
     }
@@ -131,12 +150,19 @@ watch(
 
 const onConfirm = () => {
   const selected = toppings.value
-    .filter((t) => (quantities[t.idTopping] ?? 0) > 0)
-    .map((t) => ({
-      idTopping: t.idTopping,
-      soLuong: quantities[t.idTopping],
-      donGia: t.giaTopping, // lấy từ field backend, không hardcode
-    }));
+    .map((t) => {
+      const existing = props.existingToppings?.find((et: any) => et.idTopping === t.idTopping);
+      const existingQty = existing ? existing.soLuong : 0;
+      const desiredQty = quantities[t.idTopping] || 0;
+      return {
+        idTopping: t.idTopping,
+        soLuong: desiredQty,
+        donGia: t.giaTopping,
+        existingQty,
+        idHdctTopping: existing?.idHdctTopping
+      };
+    })
+    .filter((t) => t.soLuong !== t.existingQty);
 
   if (selected.length === 0) return;
   emit("confirm", selected);

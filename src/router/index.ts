@@ -12,6 +12,7 @@ import RegisterView from "@/modules/auth/views/RegisterView.vue";
 
 // === BUSINESS VIEWS ===
 import ShopView from "@/modules/khach-hang/views/ShopView.vue";
+import ShopLoginView from "@/modules/ban-hang-online/views/ShopLoginView.vue";
 import DashboardView from "@/modules/dashboard/views/DashboardView.vue";
 import NhanVienListView from "@/modules/nhan-vien/views/NhanVienListView.vue";
 import KhachHangListView from "@/modules/khach-hang/views/KhachHangListView.vue";
@@ -54,7 +55,26 @@ const router = createRouter({
     {
       path: "/shop",
       component: UserLayout,
-      children: [{ path: "", component: ShopView }],
+      children: [
+        { path: "", component: ShopView },
+        { path: "login", component: ShopLoginView },
+        { 
+          path: "checkout", 
+          component: () => import("@/modules/ban-hang-online/views/CheckoutOnlineView.vue") 
+        },
+        { 
+          path: "payment/:idHoaDon", 
+          component: () => import("@/modules/ban-hang-online/views/ThanhToanOnlineView.vue") 
+        },
+        { 
+          path: "orders", 
+          component: () => import("@/modules/ban-hang-online/views/DonHangCuaToiView.vue") 
+        },
+        { 
+          path: "orders/:idHoaDon", 
+          component: () => import("@/modules/ban-hang-online/views/ChiTietDonHangOnlineView.vue") 
+        }
+      ],
     },
 
     // --- Phân hệ Quản trị (ADMIN / STAFF) ---
@@ -107,6 +127,12 @@ const router = createRouter({
           component: () => import("@/modules/pos/views/PosView.vue"),
         },
 
+        {
+          path: "pos/online-orders",
+          name: "pos-online-orders",
+          component: () => import("@/modules/pos/views/PosOnlineOrdersView.vue"),
+        },
+
         // 👇 ROUTE NHẬT KÝ HỆ THỐNG (CHỈ ADMIN) 👇
         {
           path: "nhat-ky-he-thong",
@@ -118,30 +144,49 @@ const router = createRouter({
   ],
 });
 
+// Các trang trong /shop yêu cầu đăng nhập (khách chưa đăng nhập bị chuyển sang /shop/login)
+const shopAuthRequired = ["/shop/checkout", "/shop/payment", "/shop/orders"];
+
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore();
 
   const publicPages = ["/login", "/forgot-password", "/register"];
-  const authRequired = !publicPages.includes(to.path);
+  // /shop và /shop/login là public (khách chưa đăng nhập được vào)
+  const shopPublicPaths = ["/shop", "/shop/login"];
   const isAuthenticated = !!auth.token;
 
-  // 1. Nếu chưa đăng nhập mà cố vào trang bảo mật -> đẩy về login
-  if (authRequired && !isAuthenticated) {
+  const isShopPublic = shopPublicPaths.includes(to.path);
+  const isShopProtected = shopAuthRequired.some((p) => to.path.startsWith(p));
+  const isPublicPage = publicPages.includes(to.path);
+
+  // 1. Nếu chưa đăng nhập và cố vào checkout/payment/orders của shop -> /shop/login
+  if (!isAuthenticated && isShopProtected) {
+    return next("/shop/login");
+  }
+
+  // 2. Nếu chưa đăng nhập và không phải trang public hoặc shop-public -> /login
+  if (!isAuthenticated && !isPublicPage && !isShopPublic) {
     return next("/login");
   }
 
-  // 2. Nếu đã đăng nhập mà bấm vào các form login/register/quên pass -> điều hướng về trang chủ tương ứng
-  if (isAuthenticated && publicPages.includes(to.path)) {
+  // 3. Đã đăng nhập vào các trang public thông thường -> điều hướng về trang chủ tương ứng
+  if (isAuthenticated && isPublicPage) {
     return next(auth.user?.role === "USER" ? "/shop" : "/");
   }
 
-  // 3. Phân quyền truy cập dựa trên Role hệ thống
+  // 4. Đã đăng nhập vào /shop/login -> về đúng trang chủ (tránh vòng lặp)
+  if (isAuthenticated && to.path === "/shop/login") {
+    return next(auth.user?.role === "USER" ? "/shop" : "/");
+  }
+
+  // 5. Phân quyền truy cập dựa trên Role hệ thống
   if (isAuthenticated) {
     const role = auth.user?.role;
 
     // Khách hàng (USER): Chỉ được phép vào danh sách trang được chỉ định (Shop, Đổi pass, Profile)
-    const allowedUserPaths = ["/shop", "/change-password", "/change-phone", "/profile"];
-    if (role === "USER" && !allowedUserPaths.includes(to.path)) {
+    const allowedUserPaths = ["/profile", "/change-password", "/change-phone"];
+    const isUserAllowed = to.path.startsWith("/shop") || allowedUserPaths.includes(to.path);
+    if (role === "USER" && !isUserAllowed) {
       return next("/shop");
     }
 

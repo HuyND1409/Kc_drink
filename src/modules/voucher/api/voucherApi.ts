@@ -1,4 +1,5 @@
 import api from "@/api/axios";
+import { notifyDataChanged } from "@/utils/appSync";
 import type { VoucherRequest } from "../types/voucher";
 
 export const getVoucher = (
@@ -17,25 +18,35 @@ export const getVoucher = (
   });
 };
 
-export const createVoucher = (data: VoucherRequest) => {
-  return api.post("/voucher", data);
+export const createVoucher = async (data: VoucherRequest) => {
+  const res = await api.post("/voucher", data);
+  notifyDataChanged("VOUCHER_UPDATED");
+  return res;
 };
 
-export const updateVoucher = (id: number, data: VoucherRequest) => {
-  return api.put(`/voucher/${id}`, data);
+export const updateVoucher = async (id: number, data: VoucherRequest) => {
+  const res = await api.put(`/voucher/${id}`, data);
+  notifyDataChanged("VOUCHER_UPDATED");
+  return res;
 };
 
 // Chú ý: Nếu Backend Controller của Voucher bạn viết là @PutMapping thì để api.put
 // Nếu bạn viết @PatchMapping (giống bên Khách hàng) thì đổi thành api.patch nhé
-export const lockVoucher = (id: number) => {
-  return api.put(`/voucher/${id}/lock`);
+export const lockVoucher = async (id: number) => {
+  const res = await api.put(`/voucher/${id}/lock`);
+  notifyDataChanged("VOUCHER_UPDATED");
+  return res;
 };
 
-export const unlockVoucher = (id: number) => {
-  return api.put(`/voucher/${id}/unlock`);
+export const unlockVoucher = async (id: number) => {
+  const res = await api.put(`/voucher/${id}/unlock`);
+  notifyDataChanged("VOUCHER_UPDATED");
+  return res;
 };
 
 // Ném luôn cái hàm Quét Sinh Nhật vào đây cho chuẩn form
-export const triggerBirthday = () => {
-  return api.post("/voucher/trigger-birthday");
+export const triggerBirthday = async () => {
+  const res = await api.post("/voucher/trigger-birthday");
+  notifyDataChanged("VOUCHER_UPDATED");
+  return res;
 };

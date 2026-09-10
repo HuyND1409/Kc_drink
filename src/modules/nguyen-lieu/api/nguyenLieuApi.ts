@@ -1,4 +1,5 @@
 import api from "@/api/axios";
+import { notifyDataChanged } from "@/utils/appSync";
 import type { NguyenLieuRequest, LoNguyenLieuRequest } from "@/modules/nguyen-lieu/types/nguyenLieu";
 
 // ============================================================
@@ -18,16 +19,22 @@ export const getNguyenLieu = (
   });
 };
 
-export const createNguyenLieu = (data: NguyenLieuRequest) => {
-  return api.post("/nguyen-lieu", data);
+export const createNguyenLieu = async (data: NguyenLieuRequest) => {
+  const res = await api.post("/nguyen-lieu", data);
+  notifyDataChanged("NGUYEN_LIEU_UPDATED");
+  return res;
 };
 
-export const lockNguyenLieu = (id: number) => {
-  return api.patch(`/nguyen-lieu/${id}/lock`);
+export const lockNguyenLieu = async (id: number) => {
+  const res = await api.patch(`/nguyen-lieu/${id}/lock`);
+  notifyDataChanged("NGUYEN_LIEU_UPDATED");
+  return res;
 };
 
-export const unlockNguyenLieu = (id: number) => {
-  return api.patch(`/nguyen-lieu/${id}/unlock`);
+export const unlockNguyenLieu = async (id: number) => {
+  const res = await api.patch(`/nguyen-lieu/${id}/unlock`);
+  notifyDataChanged("NGUYEN_LIEU_UPDATED");
+  return res;
 };
 
 // ============================================================
@@ -59,21 +66,29 @@ export const getLoNguyenLieu = (
   });
 };
 
-export const lockLoNguyenLieuApi = (idLo: number) => {
-  return api.put(`/lo-nguyen-lieu/${idLo}/lock`);
+export const lockLoNguyenLieuApi = async (idLo: number) => {
+  const res = await api.put(`/lo-nguyen-lieu/${idLo}/lock`);
+  notifyDataChanged("INVENTORY_UPDATED");
+  return res;
 };
 
-export const unlockLoNguyenLieuApi = (idLo: number) => {
-  return api.put(`/lo-nguyen-lieu/${idLo}/unlock`);
+export const unlockLoNguyenLieuApi = async (idLo: number) => {
+  const res = await api.put(`/lo-nguyen-lieu/${idLo}/unlock`);
+  notifyDataChanged("INVENTORY_UPDATED");
+  return res;
 };
-export const createLoNguyenLieu = (data: LoNguyenLieuRequest) => {
-  return api.post("/lo-nguyen-lieu", data);
+export const createLoNguyenLieu = async (data: LoNguyenLieuRequest) => {
+  const res = await api.post("/lo-nguyen-lieu", data);
+  notifyDataChanged("INVENTORY_UPDATED");
+  return res;
 };
 // 📄 Import Excel Lô Nguyên Liệu
-export const importLoNguyenLieuApi = (formData: FormData) => {
-  return api.post("/lo-nguyen-lieu/import", formData, {
+export const importLoNguyenLieuApi = async (formData: FormData) => {
+  const res = await api.post("/lo-nguyen-lieu/import", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
   });
+  notifyDataChanged("INVENTORY_UPDATED");
+  return res;
 };

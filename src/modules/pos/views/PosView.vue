@@ -21,7 +21,8 @@
           <div v-else class="product-grid">
             <div v-for="sp in dsSanPham" :key="sp.idSanPham" class="product-card" @click="onClickSanPham(sp)">
               <div class="product-img-wrap">
-                <img v-if="sp.hinhAnh" :src="getSanPhamImageUrl(sp.hinhAnh)" :alt="sp.tenSanPham" class="product-img" @error="onProductImageError(sp)" />
+                <img v-if="sp.hinhAnh" :src="getSanPhamImageUrl(sp.hinhAnh)" :alt="sp.tenSanPham" class="product-img"
+                  @error="onProductImageError(sp)" />
                 <div v-else class="product-img-placeholder">
                   <span>☕</span>
                 </div>
@@ -115,7 +116,8 @@
             </template>
             <template v-else>
               <div class="customer-info">
-                <span class="customer-name">{{ activeHoaDon.tenKhachHang || `Khách hàng #${activeHoaDon.idKhachHang}` }}</span>
+                <span class="customer-name">{{ activeHoaDon.tenKhachHang || `Khách hàng #${activeHoaDon.idKhachHang}`
+                  }}</span>
                 <span class="customer-phone" v-if="activeHoaDon.sdtKhachHang"> - {{ activeHoaDon.sdtKhachHang }}</span>
               </div>
               <div class="customer-actions">
@@ -152,7 +154,8 @@
                   <span class="voucher-code">{{ activeHoaDon!.maVoucher }}</span>
                   <span class="voucher-name" v-if="activeHoaDon!.tenVoucher">{{ activeHoaDon!.tenVoucher }}</span>
                 </div>
-                <div class="voucher-discount" v-if="activeHoaDon!.giamGia">Giảm {{ formatVND(activeHoaDon!.giamGia) }}</div>
+                <div class="voucher-discount" v-if="activeHoaDon!.giamGia">Giảm {{ formatVND(activeHoaDon!.giamGia) }}
+                </div>
               </div>
               <div class="voucher-actions">
                 <a-button type="text" size="small" danger @click="onRemoveVoucher"
@@ -178,7 +181,9 @@
             <div class="item-row1">
               <span class="item-name">
                 {{ ct.tenSanPham || `SP #${ct.idSanPham}` }}
-                <a-tag v-if="ct.tenKhuyenMai" color="red" style="font-size: 9px; line-height: 12px; margin-left: 4px; padding: 0 4px">{{ ct.tenKhuyenMai }}</a-tag>
+                <a-tag v-if="ct.tenKhuyenMai" color="red"
+                  style="font-size: 9px; line-height: 12px; margin-left: 4px; padding: 0 4px">{{ ct.tenKhuyenMai
+                  }}</a-tag>
               </span>
               <span class="item-price">{{ formatVND(ct.thanhTien) }}</span>
             </div>
@@ -196,9 +201,14 @@
                 <span class="item-row2-sep">·</span>
                 <span class="item-row2-opt">{{ formatDa(ct.mucDa) }}</span>
               </template>
-              <div class="item-unit-price-wrap" style="margin-left:auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2">
-                <span class="item-unit-price-original" v-if="ct.tienGiamKhuyenMai" style="font-size: 10px; color: #8c8c8c; text-decoration: line-through">{{ formatVND(ct.giaGoc ?? ct.donGia) }}/món</span>
-                <span class="item-unit-price" :style="{ color: ct.tienGiamKhuyenMai ? '#ff4d4f' : 'inherit' }">{{ formatVND(ct.donGia) }}/món</span>
+              <div class="item-unit-price-wrap"
+                style="margin-left:auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2">
+                <span class="item-unit-price-original" v-if="ct.tienGiamKhuyenMai"
+                  style="font-size: 10px; color: #8c8c8c; text-decoration: line-through">{{ formatVND(ct.giaGoc ??
+                  ct.donGia)
+                  }}/món</span>
+                <span class="item-unit-price" :style="{ color: ct.tienGiamKhuyenMai ? '#ff4d4f' : 'inherit' }">{{
+                  formatVND(ct.donGia) }}/món</span>
               </div>
             </div>
 
@@ -236,7 +246,7 @@
               <div v-for="tp in ct.toppingList" :key="tp.idHdctTopping" class="topping-tag-row">
                 <!-- tenTopping chưa có trong HdctTopping response → fallback Topping #id -->
                 <span class="topping-tag-name">• {{ tp.tenTopping ?? `Topping #${tp.idTopping}` }} × {{ tp.soLuong
-                  }}</span>
+                }}</span>
                 <span class="topping-tag-price">{{ formatVND(tp.thanhTien) }}</span>
                 <a-button v-if="!isHoaDonBiKhoa" type="text" size="small" danger
                   style="padding: 0 4px; height: 20px; font-size: 11px" @click="onXoaTopping(ct, tp)">✕</a-button>
@@ -249,7 +259,8 @@
         <div class="invoice-summary">
           <div class="summary-row">
             <span class="summary-label">Tạm tính (trước CTKM)</span>
-            <span class="summary-value">{{ formatVND(activeHoaDon!.tongTien + (activeHoaDon!.giamGiaKhuyenMai ?? 0)) }}</span>
+            <span class="summary-value">{{ formatVND(activeHoaDon!.tongTien + (activeHoaDon!.giamGiaKhuyenMai ?? 0))
+              }}</span>
           </div>
           <div class="summary-row" v-if="(activeHoaDon!.giamGiaKhuyenMai ?? 0) > 0">
             <span class="summary-label">Khuyến mãi</span>
@@ -282,7 +293,8 @@
               </a-button>
             </template>
             <template v-else>
-              <a-button type="primary" size="large" :loading="loadingTaoDonGhn" @click="onThuTaoLaiDonGhn" class="btn-thanh-toan" style="width: 100%">
+              <a-button type="primary" size="large" :loading="loadingTaoDonGhn" @click="onThuTaoLaiDonGhn"
+                class="btn-thanh-toan" style="width: 100%">
                 Thử tạo lại đơn GHN
               </a-button>
             </template>
@@ -314,7 +326,9 @@
     @confirm="onSizeConfirm" />
 
   <!-- Modal chọn topping -->
-  <ToppingPickerModal :open="toppingModalOpen" :id-chi-tiet="selectedChiTietId" @close="toppingModalOpen = false"
+  <ToppingPickerModal :open="toppingModalOpen" :id-chi-tiet="selectedChiTietId"
+    :existing-toppings="activeHoaDon?.chiTiet?.find(ct => ct.idHoaDonChiTiet === selectedChiTietId)?.toppingList || []"
+    @close="toppingModalOpen = false"
     @confirm="onToppingConfirm" />
 
   <!-- Modal chọn khách hàng -->
@@ -327,12 +341,8 @@
   <PayOSPaymentModal :open="payosModalOpen" :hoa-don="activeHoaDon" @close="payosModalOpen = false"
     @created="onPayOSCreated" @paid="onPayOSPaid" @expired="onPayOSExpired" @cancelled="onPayOSCancelled" />
 
-  <PosPaymentSuccessModal
-    :open="paymentSuccessModalOpen"
-    :hoa-don="paymentSuccessHoaDon"
-    :van-don="paymentSuccessVanDon"
-    @close="onPaymentSuccessModalClose"
-  />
+  <PosPaymentSuccessModal :open="paymentSuccessModalOpen" :hoa-don="paymentSuccessHoaDon" :van-don="paymentSuccessVanDon"
+    @close="onPaymentSuccessModalClose" />
 </template>
 
 <script setup lang="ts">
@@ -357,6 +367,7 @@ import {
   xoaChiTiet,
   themToppingChiTiet,
   xoaTopping,
+  capNhatTopping,
   thanhToan,
   huyHoaDon,
   capNhatKhachHangHoaDon,
@@ -819,24 +830,39 @@ const openToppingModal = (idChiTiet: number) => {
 };
 
 const onToppingConfirm = async (
-  selected: { idTopping: number; soLuong: number; donGia: number }[]
+  selected: { idTopping: number; soLuong: number; donGia: number; existingQty: number; idHdctTopping?: number }[]
 ) => {
   if (!selectedChiTietId.value) return;
   toppingModalOpen.value = false;
 
-  // Gọi tuần tự từng topping được chọn
+  // Gọi tuần tự từng topping được chọn theo Diff
   let lastResponse: HoaDon | null = null;
   for (const tp of selected) {
     try {
-      const res = await themToppingChiTiet(selectedChiTietId.value, {
-        idTopping: tp.idTopping,
-        soLuong: tp.soLuong,
-        donGia: tp.donGia,
-      });
-      lastResponse = normalizeHoaDon(res.data?.data ?? res.data);
+      if (tp.existingQty === 0 && tp.soLuong > 0) {
+        // Case A: Thêm mới
+        const res = await themToppingChiTiet(selectedChiTietId.value, {
+          idTopping: tp.idTopping,
+          soLuong: tp.soLuong,
+          donGia: tp.donGia,
+        });
+        lastResponse = normalizeHoaDon(res.data?.data ?? res.data);
+      } else if (tp.existingQty > 0 && tp.soLuong > 0 && tp.idHdctTopping) {
+        // Case B: Cập nhật số lượng
+        const res = await capNhatTopping(tp.idHdctTopping, {
+          idTopping: tp.idTopping,
+          soLuong: tp.soLuong,
+          donGia: tp.donGia,
+        });
+        lastResponse = normalizeHoaDon(res.data?.data ?? res.data);
+      } else if (tp.existingQty > 0 && tp.soLuong === 0 && tp.idHdctTopping) {
+        // Case C: Xóa topping
+        const res = await xoaTopping(tp.idHdctTopping);
+        lastResponse = normalizeHoaDon(res.data?.data ?? res.data);
+      }
     } catch (err: any) {
       message.error(
-        err.response?.data?.message || `Thêm topping #${tp.idTopping} thất bại`
+        err.response?.data?.message || `Thao tác topping #${tp.idTopping} thất bại`
       );
     }
   }
@@ -1163,20 +1189,16 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* ============================================================
-   WRAPPER: Grid 2 cột cố định — dùng grid thay flex để
-   column width KHÔNG bị content/tab-bar làm thay đổi.
-   minmax(0, Xfr) đảm bảo mỗi cột không vượt quá tỷ lệ
-   kể cả khi nội dung bên trong overflow.
-   ============================================================ */
 .pos-wrapper {
   display: grid;
   grid-template-columns: minmax(0, 62fr) minmax(340px, 38fr);
   gap: 12px;
-  height: 100%;
+  height: calc(100vh - 144px);
+  background-color: #f0f2f5;
   min-height: 0;
-  /* Ngăn wrapper tự giãn theo content con */
   overflow: hidden;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
 /* ============================================================
@@ -1186,7 +1208,9 @@ onMounted(() => {
 .pos-left {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
   min-width: 0;
   min-height: 0;
   height: 100%;
@@ -1396,7 +1420,8 @@ onMounted(() => {
   /* Giới hạn width mỗi tab để không chiếm quá nhiều */
   max-width: 110px;
   min-width: 60px;
-  flex-shrink: 1; /* Allow shrink */
+  flex-shrink: 1;
+  /* Allow shrink */
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   line-height: 1.5;
   font-family: inherit;
@@ -1483,6 +1508,7 @@ onMounted(() => {
   text-overflow: ellipsis;
   cursor: default;
 }
+
 
 /* Khách hàng */
 .pos-customer-section {
@@ -1858,16 +1884,19 @@ onMounted(() => {
   border-radius: 4px;
   z-index: 10;
 }
+
 .product-price-row {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+
 .product-price-original {
   font-size: 11px;
   color: #8c8c8c;
   text-decoration: line-through;
 }
+
 .product-price-sale {
   color: #ff4d4f;
   font-weight: 600;
