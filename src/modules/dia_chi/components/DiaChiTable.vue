@@ -26,8 +26,7 @@
 
       <template v-if="column.key === 'action'">
 
-        <a-space>
-
+        <a-space v-if="isAdmin">
           <a-button type="primary" ghost size="small" @click="$emit('edit', record)">
             Sửa
           </a-button>
@@ -35,8 +34,8 @@
           <a-button v-if="!record.macDinh && record.trangThai === 1" size="small" @click="$emit('default', record)">
             Đặt mặc định
           </a-button>
-
         </a-space>
+        <span v-else>—</span>
 
       </template>
 
@@ -47,7 +46,12 @@
 
 <script setup lang="ts">
 
+import { computed } from "vue";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import type { DiaChi } from "../types/diaChi";
+
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 
 defineProps<{
 

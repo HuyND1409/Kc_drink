@@ -187,8 +187,8 @@ const triggerOpenCart = () => {
   window.dispatchEvent(new CustomEvent('open-cart'));
 };
 
-const loadProducts = async () => {
-  loading.value = true;
+const loadProducts = async (silent = false) => {
+  if (!silent) loading.value = true;
   try {
     const params = {
       page: currentPage.value - 1,
@@ -198,13 +198,16 @@ const loadProducts = async () => {
     products.value = response.data.data.content;
     totalElements.value = response.data.data.totalElements;
   } catch (error: any) {
-    message.error(error.response?.data?.message || "Không thể tải danh sách sản phẩm");
+    if (!silent) {
+      message.error(error.response?.data?.message || "Không thể tải danh sách sản phẩm");
+    }
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 };
 
 let cleanupAppSync: (() => void) | null = null;
+let shopPollingInterval: ReturnType<typeof setInterval> | null = null;
 
 onMounted(() => {
   loadProducts();
@@ -231,10 +234,16 @@ onMounted(() => {
       }
     }
   });
+  shopPollingInterval = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      loadProducts(true);
+    }
+  }, 10000);
 });
 
 onUnmounted(() => {
   if (cleanupAppSync) cleanupAppSync();
+  if (shopPollingInterval) clearInterval(shopPollingInterval);
 });
 
 const onPageChange = (page: number) => {

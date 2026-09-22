@@ -44,29 +44,31 @@
       </template>
 
       <template v-if="column.key === 'action'">
-        <a-dropdown>
-          <a-button>
-            <MoreOutlined />
-          </a-button>
-          <template #overlay>
-            <a-menu>
-              <a-menu-item @click="$emit('edit', record)">
-                <EditOutlined />
-                Sửa
-              </a-menu-item>
+        <template v-if="isAdmin">
+          <a-dropdown>
+            <a-button>
+              <MoreOutlined />
+            </a-button>
+            <template #overlay>
+              <a-menu>
+                <a-menu-item @click="$emit('edit', record)">
+                  <EditOutlined />
+                  Sửa
+                </a-menu-item>
 
-              <a-menu-item v-if="record.trangThai === 1" danger @click="$emit('lock', record.idVoucher)">
-                <LockOutlined />
-                Khóa mã
-              </a-menu-item>
+                <a-menu-item v-if="record.trangThai === 1" danger @click="$emit('lock', record.idVoucher)">
+                  <LockOutlined />
+                  Khóa mã
+                </a-menu-item>
 
-              <a-menu-item v-else @click="$emit('unlock', record.idVoucher)">
-                <UnlockOutlined />
-                Mở khóa
-              </a-menu-item>
-            </a-menu>
-          </template>
-        </a-dropdown>
+                <a-menu-item v-else @click="$emit('unlock', record.idVoucher)">
+                  <UnlockOutlined />
+                  Mở khóa
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
+        </template>
       </template>
 
     </template>
@@ -74,6 +76,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import type { Voucher } from "../types/voucher";
 import {
   MoreOutlined,
@@ -81,6 +85,9 @@ import {
   LockOutlined,
   UnlockOutlined,
 } from "@ant-design/icons-vue";
+
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 
 defineProps<{
   data: Voucher[];
@@ -107,17 +114,22 @@ const formatDate = (dateString?: string | null) => {
 };
 
 // Cấu hình các cột của bảng
-const columns = [
-  { title: "Mã", dataIndex: "maVoucher", width: 120 },
-  { title: "Tên chương trình", dataIndex: "tenVoucher", width: 200 },
-  { title: "Mức giảm", key: "mucGiam", width: 120, align: "center" },
-  { title: "Điều kiện", key: "dieuKien", width: 150 },
-  { title: "SL", dataIndex: "soLuong", width: 80, align: "center" },
-  { title: "Loại mã", key: "loaiMa", width: 150, align: "center" },
-  { title: "Thời gian áp dụng", key: "thoiGian", width: 220 },
-  { title: "Trạng thái", key: "trangThai", width: 110, align: "center" },
-  { title: "Thao tác", key: "action", width: 90, align: "center" }
-];
+const columns = computed(() => {
+  const base: any[] = [
+    { title: "Mã", dataIndex: "maVoucher", width: 120 },
+    { title: "Tên chương trình", dataIndex: "tenVoucher", width: 200 },
+    { title: "Mức giảm", key: "mucGiam", width: 120, align: "center" },
+    { title: "Điều kiện", key: "dieuKien", width: 150 },
+    { title: "SL", dataIndex: "soLuong", width: 80, align: "center" },
+    { title: "Loại mã", key: "loaiMa", width: 150, align: "center" },
+    { title: "Thời gian áp dụng", key: "thoiGian", width: 220 },
+    { title: "Trạng thái", key: "trangThai", width: 110, align: "center" },
+  ];
+  if (isAdmin.value) {
+    base.push({ title: "Thao tác", key: "action", width: 90, align: "center" });
+  }
+  return base;
+});
 </script>
 
 <style scoped>

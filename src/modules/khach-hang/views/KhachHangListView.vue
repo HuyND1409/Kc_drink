@@ -36,7 +36,7 @@
 
       </div>
 
-      <a-button type="primary" size="large" @click="onAdd">
+      <a-button v-if="canCreateCustomer" type="primary" size="large" @click="onAdd">
         + Thêm khách hàng
       </a-button>
 
@@ -65,8 +65,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref , watch} from "vue";
+import { onMounted, onUnmounted, ref, watch, computed } from "vue";
 import { message } from "ant-design-vue";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import type { AxiosError } from "axios";
 import KhachHangTable from "../components/KhachHangTable.vue";
 import KhachHangForm from "../components/KhachHangForm.vue";
@@ -89,6 +90,9 @@ import type {
 const dsKhachHang = ref<KhachHang[]>([]);
 const loading = ref(false);
 const openModal = ref(false);
+
+const authStore = useAuthStore();
+const canCreateCustomer = computed(() => authStore.user?.role === "ADMIN" || authStore.user?.role === "STAFF");
 
 /* Chuẩn bị cho module địa chỉ */
 const openDiaChi = ref(false);

@@ -215,7 +215,16 @@ export interface PayOSPaymentStatusResponse {
 }
 
 export interface ThietLapGiaoHangRequest {
-  idDiaChi: number;
+  idDiaChi?: number | null;
+  tenNguoiNhan?: string;
+  sdtNguoiNhan?: string;
+  diaChi?: string;
+  provinceId?: number;
+  districtId?: number;
+  wardCode?: string;
+  tenTinhThanh?: string;
+  tenQuanHuyen?: string;
+  tenPhuongXa?: string;
   ghiChu?: string | null;
 }
 

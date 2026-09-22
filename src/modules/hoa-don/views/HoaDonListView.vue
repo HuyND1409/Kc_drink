@@ -182,13 +182,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from "vue";
+import { ref, reactive, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import dayjs from "dayjs";
 import { getDanhSachHoaDon } from "../api/hoaDonApi";
 import type { HoaDonListItem, GetHoaDonParams } from "../types/hoaDon";
 import HoaDonDetailDrawer from "../components/HoaDonDetailDrawer.vue";
+import { onDataChanged } from '@/utils/appSync';
 
 const route = useRoute();
 const router = useRouter();
@@ -231,8 +232,35 @@ const columns = [
 const detailOpen = ref(false);
 const selectedHoaDonId = ref<number | null>(null);
 
-const fetchData = async () => {
-  loading.value = true;
+let listSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
+
+const fetchData = (isBackground = false): Promise<void> => {
+  if (isUnmounted) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+const executeFetch = async (isBackground: boolean) => {
+  const sessionForThisRun = listSession;
+
+  if (!isBackground) loading.value = true;
+
   try {
     let coGiaoHang: boolean | undefined = undefined;
     if (coGiaoHangStr.value === "true") coGiaoHang = true;
@@ -248,18 +276,63 @@ const fetchData = async () => {
     };
 
     const res = await getDanhSachHoaDon(params);
+    if (sessionForThisRun !== listSession || isUnmounted) return;
+
     const data = res.data?.data ?? res.data;
     dsHoaDon.value = data.content;
     pagination.total = data.totalElements;
   } catch (err: any) {
-    message.error(err.response?.data?.message || "Lỗi khi lấy danh sách hóa đơn");
-    console.error(err);
+    if (sessionForThisRun === listSession && !isUnmounted && !isBackground) {
+      message.error(err.response?.data?.message || "Lỗi khi lấy danh sách hóa đơn");
+      console.error(err);
+    }
   } finally {
-    loading.value = false;
+    if (sessionForThisRun === listSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loading.value = false;
+      }
+    }
   }
 };
 
+const consumePending = () => {
+  if (isUnmounted) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      fetchData(true);
+    }
+  }, 300);
+};
+
 const onSearch = () => {
+  listSession++;
   pagination.current = 1;
   fetchData();
 };
@@ -290,6 +363,7 @@ const resetFilter = () => {
 };
 
 const handleTableChange = (pag: any) => {
+  listSession++;
   pagination.current = pag.current;
   pagination.pageSize = pag.pageSize;
   fetchData();
@@ -318,6 +392,24 @@ onMounted(() => {
   if (queryId && !isNaN(Number(queryId))) {
     openDetail(Number(queryId));
   }
+
+  unsubSync = onDataChanged((type) => {
+    if (['ONLINE_ORDER_UPDATED', 'HOA_DON_UPDATED', 'GHN_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 10000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  listSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
 });
 
 // --- Formatters ---

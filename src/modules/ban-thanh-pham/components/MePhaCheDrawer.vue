@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <a-drawer
     :open="props.open"
     width="880"
@@ -37,7 +37,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <span style="font-size:15px;font-weight:700;">📋 Lịch sử mẻ pha</span>
         <a-button
-          v-if="isAdmin"
+          v-if="canPhaChe"
           type="primary"
           :disabled="props.btp.trangThai !== 1 || !hasRecipe"
           @click="openTaoMe"
@@ -47,7 +47,7 @@
       </div>
 
       <a-alert
-        v-if="isAdmin && !hasRecipe"
+        v-if="canPhaChe && !hasRecipe"
         type="warning"
         message="Bán thành phẩm chưa có công thức. Vui lòng cấu hình công thức trước khi tạo mẻ."
         show-icon
@@ -175,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import type { AxiosError } from "axios";
 import { useAuthStore } from "@/modules/auth/store/authStore";
@@ -190,6 +190,7 @@ import {
   createMePhaChe,
   getCongThucBanThanhPham,
 } from "../api/banThanhPhamApi";
+import { onDataChanged } from "@/utils/appSync";
 
 const props = defineProps<{
   open: boolean;
@@ -202,7 +203,7 @@ const emit = defineEmits<{
 }>();
 
 const authStore = useAuthStore();
-const isAdmin = computed(() => authStore.user?.role === "ADMIN");
+const canPhaChe = computed(() => authStore.user?.role === "ADMIN" || authStore.user?.role === "STAFF");
 
 // ============================================================
 // Helpers
@@ -265,40 +266,149 @@ const hasRecipe = computed(() => congThucForPreview.value.length > 0);
 // ============================================================
 // Watch
 // ============================================================
-watch(
-  () => props.open,
-  async (isOpen) => {
-    if (isOpen && props.btp) {
-      await Promise.all([loadMePhaChe(), loadCongThucForPreview()]);
-    } else if (!isOpen) {
-      allMePhaChe.value = [];
-      congThucForPreview.value = [];
-    }
-  }
-);
+let detailSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
 
-const loadMePhaChe = async () => {
-  loadingMe.value = true;
+const loadMePhaChe = (isBackground = false): Promise<void> => {
+  if (isUnmounted || !props.open || !props.btp) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+const executeFetch = async (isBackground: boolean) => {
+  const sessionForThisRun = detailSession;
+  const currentId = props.btp!.idBanThanhPham;
+
+  if (!isBackground) loadingMe.value = true;
   try {
     const res = await getMePhaCheList();
+    if (sessionForThisRun !== detailSession || !props.btp || props.btp.idBanThanhPham !== currentId || !props.open || isUnmounted) return;
     allMePhaChe.value = res.data.data ?? [];
-  } catch (err) {
-    const e = err as AxiosError<{ message: string }>;
-    message.error(e.response?.data?.message || "Không thể tải danh sách mẻ pha");
+  } catch (error: any) {
+    if (sessionForThisRun === detailSession && !isUnmounted && !isBackground) {
+      console.error(error);
+      const e = error as AxiosError<{ message: string }>;
+      message.error(e.response?.data?.message || "Không thể tải danh sách mẻ pha");
+    }
   } finally {
-    loadingMe.value = false;
+    if (sessionForThisRun === detailSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loadingMe.value = false;
+      }
+    }
   }
+};
+
+const consumePending = () => {
+  if (isUnmounted || !props.open || !props.btp) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted || !props.open || !props.btp) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      loadMePhaChe(true);
+    }
+  }, 300);
 };
 
 const loadCongThucForPreview = async () => {
-  if (!props.btp) return;
+  const sessionForThisRun = detailSession;
+  const currentId = props.btp?.idBanThanhPham;
+  if (!currentId) return;
   try {
-    const res = await getCongThucBanThanhPham(props.btp.idBanThanhPham);
+    const res = await getCongThucBanThanhPham(currentId);
+    if (isUnmounted || !props.open || sessionForThisRun !== detailSession || !props.btp || props.btp.idBanThanhPham !== currentId) return;
     congThucForPreview.value = res.data.data ?? [];
   } catch {
+    if (isUnmounted || !props.open || sessionForThisRun !== detailSession || !props.btp || props.btp.idBanThanhPham !== currentId) return;
     congThucForPreview.value = [];
   }
 };
+
+watch(
+  () => [props.open, props.btp] as const,
+  async (newValues, oldValues) => {
+    const [isOpen, btp] = newValues;
+    const [oldIsOpen, oldBtp] = oldValues || [false, null];
+
+    if (!isOpen || !btp) {
+      detailSession++;
+      pendingRequests.forEach(req => req.resolve());
+      pendingRequests = [];
+      if (fetchTimeout) clearTimeout(fetchTimeout);
+      loadingMe.value = false;
+      allMePhaChe.value = [];
+      congThucForPreview.value = [];
+    } else if (isOpen && (!oldBtp || btp.idBanThanhPham !== oldBtp.idBanThanhPham)) {
+      detailSession++;
+      allMePhaChe.value = [];
+      congThucForPreview.value = [];
+      await Promise.all([loadMePhaChe(), loadCongThucForPreview()]);
+    } else if (isOpen && !oldIsOpen) {
+      await Promise.all([loadMePhaChe(), loadCongThucForPreview()]);
+    }
+  },
+  { immediate: true }
+);
+
+onMounted(() => {
+  unsubSync = onDataChanged((type) => {
+    if (['BAN_THANH_PHAM_UPDATED', 'INVENTORY_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 10000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  detailSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+});
 
 // ============================================================
 // Tao me pha
@@ -365,7 +475,6 @@ const submitTaoMe = async () => {
   try {
     const body: TaoMePhaCheRequest = {
       idBanThanhPham: props.btp.idBanThanhPham,
-      idNhanVien: authStore.user?.idNhanVien ?? null,
       soLuongTaoRa: meForm.value.soLuongTaoRa,
       ghiChu: meForm.value.ghiChu.trim() || null,
     };
@@ -373,6 +482,7 @@ const submitTaoMe = async () => {
     message.success("Tạo mẻ pha thành công");
     taoMeOpen.value = false;
     // Reload me pha + bao parent reload tongTon
+    detailSession++;
     await loadMePhaChe();
     emit("reloadBtp");
   } catch (err) {

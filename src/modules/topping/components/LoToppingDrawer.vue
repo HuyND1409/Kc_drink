@@ -4,7 +4,17 @@
     <template #extra>
       <div style="display: flex; gap: 8px;">
         <!-- Thẻ Input File ẩn -->
-        <input ref="fileInputRef" type="file" accept=".xlsx, .xls" style="display: none" @change="handleFileUpload" />
+        <input ref="fileInputRef" type="file" accept=".xlsx" style="display: none" @change="handleFileUpload" />
+
+        <!-- Nút Import Excel -->
+        <a-tooltip title="Excel: A(Mã lô), B(ID Topping), C(Số lượng), D(Hạn SD), E(Đơn giá - tùy chọn). Dòng 1 là tiêu đề.">
+          <a-button v-if="isAdmin" :loading="loadingImport" style="background-color: #217346; color: #fff; border-color: #217346;" @click="triggerFileInput">
+            <template #icon>
+              <FileExcelOutlined />
+            </template>
+            Import Excel
+          </a-button>
+        </a-tooltip>
 
         <!-- Nút Nhập kho thủ công cũ -->
         <a-button v-if="isAdmin" type="primary" @click="openNhapKho = true">
@@ -56,6 +66,14 @@
           <a-tag :color="record.trangThai === 1 || record.trangThai === null ? 'success' : 'error'">
             {{ record.trangThai === 1 || record.trangThai === null ? 'Đang Bán' : 'Đã khóa' }}
           </a-tag>
+        </template>
+
+        <!-- Đơn giá nhập -->
+        <template v-if="column.key === 'donGiaNhap'">
+          <span v-if="record.donGiaNhap == null" style="color: #8c8c8c; font-style: italic">Chưa ghi nhận</span>
+          <span v-else style="font-weight: 600">
+            {{ new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(record.donGiaNhap) }}&nbsp;đ
+          </span>
         </template>
 
         <!-- ➕ Thao tác Khóa / Mở khóa -->
@@ -112,6 +130,12 @@
             :disabledDate="disabledPastDate" placeholder="Chọn hạn sử dụng (không được trong quá khứ)" />
         </a-form-item>
 
+        <a-form-item label="Đơn giá nhập" name="donGiaNhap">
+          <a-input-number v-model:value="nhapKhoForm.donGiaNhap" :min="0" :precision="2"
+            placeholder="Để trống nếu chưa ghi nhận" style="width: 100%"
+            addon-after="VNĐ/phần" />
+        </a-form-item>
+
       </a-form>
     </a-modal>
 
@@ -140,7 +164,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, computed } from "vue";
+import { ref, reactive, watch, computed, onMounted, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 import type { AxiosError } from "axios";
@@ -150,6 +174,7 @@ import {
   LockOutlined,
   UnlockOutlined,
   ExclamationCircleFilled,
+  FileExcelOutlined,
 } from "@ant-design/icons-vue";
 import type { Topping, LoTopping } from "../types/topping";
 import {
@@ -157,8 +182,10 @@ import {
   createLoTopping,
   lockLoToppingApi,
   unlockLoToppingApi,
+  importLoToppingApi,
 } from "../api/toppingApi";
 import { useAuthStore } from "@/modules/auth/store/authStore";
+import { onDataChanged } from "@/utils/appSync";
 
 // ============================================================
 // Props & Emits
@@ -191,6 +218,12 @@ const pageSize = ref(10);
 const total = ref(0);
 
 // ============================================================
+// State: Import Excel
+// ============================================================
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const loadingImport = ref(false);
+
+// ============================================================
 // State: Form nhập kho
 // ============================================================
 const openNhapKho = ref(false);
@@ -203,10 +236,12 @@ const nhapKhoForm = reactive<{
   maLo: string;
   soLuongNhap: number | null;
   hanSuDung: Dayjs | null;
+  donGiaNhap: number | null;
 }>({
   maLo: "",
   soLuongNhap: null,
   hanSuDung: null,
+  donGiaNhap: null,
 });
 
 // ============================================================
@@ -225,6 +260,7 @@ const loColumns = computed(() => {
     { title: "#", dataIndex: "idLoTopping", width: 60, align: "center" as const },
     { title: "Mã lô", dataIndex: "maLo", width: 110, align: "center" as const },
     { title: "Số lượng tồn", key: "soLuongTon", width: 140, align: "center" as const },
+    { title: "Đơn giá nhập", key: "donGiaNhap", width: 140, align: "right" as const },
     { title: "Hạn sử dụng (FEFO)", key: "hanSuDung", align: "center" as const },
     { title: "Ngày nhập", key: "ngayNhap", width: 150, align: "center" as const },
     { title: "Người nhập", dataIndex: "tenNhanVien", width: 130 },
@@ -295,23 +331,163 @@ const getExpiryColor = (dateStr: string) => {
 // ============================================================
 // Data Loading
 // ============================================================
-const loadLo = async () => {
-  if (!props.topping) return;
-  loadingLo.value = true;
+let detailSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
+
+const loadLo = (isBackground = false): Promise<void> => {
+  if (isUnmounted || !props.open || !props.topping) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+// ============================================================
+// Import Excel
+// ============================================================
+let uploadRequestId = 0;
+
+const triggerFileInput = () => {
+  fileInputRef.value?.click();
+};
+
+const handleFileUpload = async (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  if (loadingImport.value) {
+    target.value = "";
+    return;
+  }
+
+  const idNhanVien = authStore.user?.idNhanVien;
+  if (!idNhanVien) {
+    message.error("Không xác định được nhân viên, vui lòng đăng nhập lại!");
+    target.value = "";
+    return;
+  }
+
+  if (!props.topping || isUnmounted || !props.open) {
+    target.value = "";
+    return;
+  }
+
+  const uploadSession = detailSession;
+  const currentUploadId = ++uploadRequestId;
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("idNhanVien", idNhanVien.toString());
+
+  loadingImport.value = true;
   try {
-    const res = await getLoTopping(
-      props.topping.idTopping,
-      currentPage.value - 1,
-      pageSize.value
-    );
-    dsLo.value = res.data.data.content;
-    total.value = res.data.data.totalElements;
+    const res = await importLoToppingApi(formData);
+
+    if (isUnmounted || uploadSession !== detailSession) {
+      return;
+    }
+
+    if (res.data?.code === 200) {
+      message.success(res.data?.message || "Import danh sách lô topping thành công!");
+      detailSession++;
+      currentPage.value = 1;
+      await loadLo();
+      emit("success");
+      emit("refreshMainList");
+    } else {
+      message.error(res.data?.message || "Có lỗi xảy ra khi import file Excel!");
+    }
+  } catch (error: any) {
+    if (!isUnmounted && uploadSession === detailSession) {
+      const errorMsg = error.response?.data?.message || "Có lỗi xảy ra khi import file Excel!";
+      message.error(errorMsg);
+    }
   } finally {
-    loadingLo.value = false;
+    if (currentUploadId === uploadRequestId) {
+      loadingImport.value = false;
+      target.value = "";
+    }
   }
 };
 
+const executeFetch = async (isBackground: boolean) => {
+  const sessionForThisRun = detailSession;
+  const currentId = props.topping!.idTopping;
+
+  if (!isBackground) loadingLo.value = true;
+  try {
+    const res = await getLoTopping(
+      currentId,
+      currentPage.value - 1,
+      pageSize.value
+    );
+    if (sessionForThisRun !== detailSession || !props.topping || props.topping.idTopping !== currentId || !props.open || isUnmounted) return;
+    dsLo.value = res.data.data.content;
+    total.value = res.data.data.totalElements;
+  } catch (error: any) {
+    if (sessionForThisRun === detailSession && !isUnmounted && !isBackground) {
+      console.error(error);
+    }
+  } finally {
+    if (sessionForThisRun === detailSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loadingLo.value = false;
+      }
+    }
+  }
+};
+
+const consumePending = () => {
+  if (isUnmounted || !props.open || !props.topping) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted || !props.open || !props.topping) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      loadLo(true);
+    }
+  }, 300);
+};
+
 const onPageChange = (page: number, size: number) => {
+  detailSession++;
   currentPage.value = page;
   pageSize.value = size;
   loadLo();
@@ -324,6 +500,7 @@ const handleLockLo = async (idLoTopping: number) => {
   try {
     await lockLoToppingApi(idLoTopping);
     message.success('Đã khóa lô topping thành công!');
+    detailSession++;
     await loadLo();
     emit('success');
     emit('refreshMainList');
@@ -336,6 +513,7 @@ const handleUnlockLo = async (idLoTopping: number) => {
   try {
     await unlockLoToppingApi(idLoTopping);
     message.success('Đã mở khóa lô topping thành công!');
+    detailSession++;
     await loadLo();
     emit('success');
     emit('refreshMainList');
@@ -379,6 +557,7 @@ const closeNhapKho = () => {
   nhapKhoForm.maLo = "";
   nhapKhoForm.soLuongNhap = null;
   nhapKhoForm.hanSuDung = null;
+  nhapKhoForm.donGiaNhap = null;
   isUpdate.value = false;
   nhapKhoFormRef.value?.clearValidate();
   openNhapKho.value = false;
@@ -395,10 +574,12 @@ const handleNhapKho = async () => {
       soLuongNhap: nhapKhoForm.soLuongNhap!,
       hanSuDung: dayjs(nhapKhoForm.hanSuDung!).format("YYYY-MM-DD"),
       idNhanVien: authStore.user?.idNhanVien ?? 1,
+      donGiaNhap: nhapKhoForm.donGiaNhap ?? null,
     });
 
     message.success("Nhập kho thành công!");
     closeNhapKho();
+    detailSession++;
     currentPage.value = 1;
     await loadLo();
     emit("success");
@@ -419,15 +600,51 @@ const handleNhapKho = async () => {
 // Watch
 // ============================================================
 watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen && props.topping) {
+  () => [props.open, props.topping] as const,
+  (newValues, oldValues) => {
+    const [isOpen, topping] = newValues;
+    const [oldIsOpen, oldTopping] = oldValues || [false, null];
+
+    if (!isOpen || !topping) {
+      detailSession++;
+      pendingRequests.forEach(req => req.resolve());
+      pendingRequests = [];
+      if (fetchTimeout) clearTimeout(fetchTimeout);
+      loadingLo.value = false;
+      loadingImport.value = false;
+      dsLo.value = [];
+    } else if (isOpen && (!oldTopping || topping.idTopping !== oldTopping.idTopping)) {
+      detailSession++;
+      loadingImport.value = false;
       currentPage.value = 1;
       dsLo.value = [];
       loadLo();
+    } else if (isOpen && !oldIsOpen) {
+      loadLo();
     }
-  }
+  },
+  { immediate: true }
 );
+
+onMounted(() => {
+  unsubSync = onDataChanged((type) => {
+    if (['TOPPING_UPDATED', 'INVENTORY_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 10000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  detailSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+});
 </script>
 
 <style scoped>

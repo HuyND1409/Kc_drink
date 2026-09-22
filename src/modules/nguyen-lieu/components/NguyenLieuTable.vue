@@ -31,6 +31,14 @@
         </a-tag>
       </template>
 
+      <!-- Giá nhập gần nhất -->
+      <template v-if="column.key === 'giaNhapGanNhat'">
+        <span v-if="record.giaNhapGanNhat == null" style="color: #8c8c8c; font-style: italic">Chưa ghi nhận</span>
+        <span v-else style="font-weight: 600">
+          {{ new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(record.giaNhapGanNhat) }}&nbsp;đ
+        </span>
+      </template>
+
       <!-- Thao tác -->
       <template v-if="column.key === 'action'">
         <div class="action-cell">
@@ -99,6 +107,7 @@ const columns = [
   { title: "Tên nguyên liệu", dataIndex: "tenNguyenLieu" },
   { title: "Đơn vị tính", key: "donViTinh", width: 150, align: "center" },
   { title: "Tổng tồn kho", key: "tongTonKho", width: 160, align: "center" },
+  { title: "Giá nhập gần nhất", key: "giaNhapGanNhat", width: 170, align: "right" },
   { title: "Trạng thái", key: "trangThai", width: 130, align: "center" },
   { title: "Thao tác", key: "action", width: 220, align: "center" },
 ];

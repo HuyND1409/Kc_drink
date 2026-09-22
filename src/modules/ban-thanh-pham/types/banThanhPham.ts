@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // Types: Ban Thanh Pham
 // ============================================================
 
@@ -61,7 +61,6 @@ export interface MePhaChe {
 
 export interface TaoMePhaCheRequest {
   idBanThanhPham: number;
-  idNhanVien?: number | null;
   soLuongTaoRa: number;
   ghiChu?: string | null;
 }

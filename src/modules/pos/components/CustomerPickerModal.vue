@@ -5,7 +5,7 @@
       <div class="search-header">
         <a-input-search v-model:value="keyword" placeholder="Tìm theo tên hoặc số điện thoại" allow-clear
           @change="onSearchDebounced" @search="onSearch" class="search-input" />
-        <a-button type="primary" ghost @click="isCreating = true" v-if="!isCreating">+ Thêm khách</a-button>
+        <a-button type="primary" ghost @click="isCreating = true" v-if="!isCreating && canCreateCustomer">+ Thêm khách</a-button>
       </div>
 
       <div v-if="isCreating" class="create-form">
@@ -51,7 +51,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, reactive } from "vue";
+import { ref, watch, reactive, computed } from "vue";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import { getKhachHang, taoKhachHang } from "../api/posApi";
 import type { KhachHang } from "../types/pos";
 import { message } from "ant-design-vue";
@@ -69,6 +70,9 @@ const keyword = ref("");
 const loading = ref(false);
 const customers = ref<KhachHang[]>([]);
 const loadingSelectId = ref<number | null>(null);
+
+const authStore = useAuthStore();
+const canCreateCustomer = computed(() => authStore.user?.role === "ADMIN" || authStore.user?.role === "STAFF");
 
 // Create state
 const isCreating = ref(false);

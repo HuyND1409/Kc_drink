@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <a-drawer
     :open="props.open"
     width="960"
@@ -56,7 +56,7 @@
 
       <!-- SAO CHEP CONG THUC (chi hien khi >= 2 size) -->
       <div
-        v-if="sanPhamSizes.length >= 2"
+        v-if="isAdmin && sanPhamSizes.length >= 2"
         style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 16px;background:#f0f5ff;border:1px solid #d6e4ff;border-radius:8px;"
       >
         <span style="font-weight:600;white-space:nowrap;color:#1d39c4;">📋 Sao chép từ size:</span>
@@ -107,7 +107,7 @@
             <span style="font-size:15px;font-weight:700;color:#262626;">
               🧪 Nguyên liệu trực tiếp
             </span>
-            <a-button type="primary" size="small" @click="openAddNL">
+            <a-button v-if="isAdmin" type="primary" size="small" @click="openAddNL">
               + Thêm nguyên liệu
             </a-button>
           </div>
@@ -137,7 +137,7 @@
                 <a-tag>{{ record.nguyenLieu.donViTinh }}</a-tag>
               </template>
               <template v-if="column.key === 'action'">
-                <div style="display:flex;gap:6px;justify-content:center;">
+                <div v-if="isAdmin" style="display:flex;gap:6px;justify-content:center;">
                   <a-button size="small" type="link" @click="openEditNL(record)">Sửa</a-button>
                   <a-divider type="vertical" style="margin:0;" />
                   <a-popconfirm
@@ -161,7 +161,7 @@
             <span style="font-size:15px;font-weight:700;color:#262626;">
               🧫 Bán thành phẩm
             </span>
-            <a-button type="primary" size="small" @click="openAddBtp">
+            <a-button v-if="isAdmin" type="primary" size="small" @click="openAddBtp">
               + Thêm bán thành phẩm
             </a-button>
           </div>
@@ -191,7 +191,7 @@
                 <a-tag>{{ record.donViTinh }}</a-tag>
               </template>
               <template v-if="column.key === 'action'">
-                <div style="display:flex;gap:6px;justify-content:center;">
+                <div v-if="isAdmin" style="display:flex;gap:6px;justify-content:center;">
                   <a-button size="small" type="link" @click="openEditBtp(record)">Sửa</a-button>
                   <a-divider type="vertical" style="margin:0;" />
                   <a-popconfirm
@@ -261,6 +261,7 @@
                 :precision="3"
                 style="width:100%"
                 placeholder="VD: 5"
+                :disabled="!isAdmin"
               />
             </a-form-item>
           </a-col>
@@ -325,6 +326,7 @@
                 :precision="3"
                 style="width:100%"
                 placeholder="VD: 100"
+                :disabled="!isAdmin"
               />
             </a-form-item>
           </a-col>
@@ -343,6 +345,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import { message, Modal } from "ant-design-vue";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import type { AxiosError } from "axios";
 import type {
   SanPham,
@@ -409,19 +412,32 @@ const currentSizeMeta = computed<SanPhamSize | undefined>(() =>
 // ============================================================
 // Columns
 // ============================================================
-const nlColumns = [
-  { title: "Nguyên liệu", key: "tenNguyenLieu", ellipsis: true },
-  { title: "Định lượng", dataIndex: "soLuongCanDung", width: 120, align: "center" as const },
-  { title: "Đơn vị", key: "donViTinh", width: 90, align: "center" as const },
-  { title: "Thao tác", key: "action", width: 130, align: "center" as const },
-];
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 
-const btpColumns = [
-  { title: "Bán thành phẩm", key: "tenBanThanhPham", ellipsis: true },
-  { title: "Định lượng", dataIndex: "soLuongCanDung", width: 120, align: "center" as const },
-  { title: "Đơn vị", key: "donViTinh", width: 90, align: "center" as const },
-  { title: "Thao tác", key: "action", width: 130, align: "center" as const },
-];
+const nlColumns = computed(() => {
+  const base: any[] = [
+    { title: "Nguyên liệu", key: "tenNguyenLieu", ellipsis: true },
+    { title: "Định lượng", dataIndex: "soLuongCanDung", width: 120, align: "center" as const },
+    { title: "Đơn vị", key: "donViTinh", width: 90, align: "center" as const },
+  ];
+  if (isAdmin.value) {
+    base.push({ title: "Thao tác", key: "action", width: 130, align: "center" as const });
+  }
+  return base;
+});
+
+const btpColumns = computed(() => {
+  const base: any[] = [
+    { title: "Bán thành phẩm", key: "tenBanThanhPham", ellipsis: true },
+    { title: "Định lượng", dataIndex: "soLuongCanDung", width: 120, align: "center" as const },
+    { title: "Đơn vị", key: "donViTinh", width: 90, align: "center" as const },
+  ];
+  if (isAdmin.value) {
+    base.push({ title: "Thao tác", key: "action", width: 130, align: "center" as const });
+  }
+  return base;
+});
 
 // ============================================================
 // Watch: khi drawer mo

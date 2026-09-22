@@ -54,6 +54,14 @@
           </a-tag>
         </template>
 
+        <!-- Đơn giá nhập -->
+        <template v-if="column.key === 'donGiaNhap'">
+          <span v-if="record.donGiaNhap == null" style="color: #8c8c8c; font-style: italic">Chưa ghi nhận</span>
+          <span v-else style="font-weight: 600">
+            {{ new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(record.donGiaNhap) }}&nbsp;đ
+          </span>
+        </template>
+
         <!-- Nút Khóa / Mở khóa (Giao diện thiết kế lại chỉn chu) -->
         <template v-if="column.key === 'action'">
           <div style="display: flex; justify-content: center; align-items: center;">
@@ -113,13 +121,19 @@
             :disabledDate="disabledPastDate" placeholder="Chọn hạn sử dụng (không được trong quá khứ)" />
         </a-form-item>
 
+        <a-form-item label="Đơn giá nhập" name="donGiaNhap">
+          <a-input-number v-model:value="nhapKhoForm.donGiaNhap" :min="0" :precision="2"
+            placeholder="Để trống nếu chưa ghi nhận" style="width: 100%"
+            :addon-after="`VNĐ/${nguyenLieu?.donViTinh ?? 'đơn vị'}`" />
+        </a-form-item>
+
       </a-form>
     </a-modal>
   </a-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, computed } from "vue";
+import { ref, reactive, watch, onMounted, onUnmounted, computed } from "vue";
 import { message } from "ant-design-vue";
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 import type { AxiosError } from "axios";
@@ -134,6 +148,7 @@ import {
   unlockLoNguyenLieuApi
 } from "@/modules/nguyen-lieu/api/nguyenLieuApi";
 import { useAuthStore } from "@/modules/auth/store/authStore";
+import { onDataChanged } from "@/utils/appSync";
 
 // ============================================================
 // Props & Emits (Đã gộp chung thành 1)
@@ -178,10 +193,12 @@ const nhapKhoForm = reactive<{
   maLo: string;
   soLuongTon: number | null;
   hanSuDung: Dayjs | null;
+  donGiaNhap: number | null;
 }>({
   maLo: "",
   soLuongTon: null,
   hanSuDung: null,
+  donGiaNhap: null,
 });
 
 // ============================================================
@@ -192,6 +209,7 @@ const loColumns = computed(() => {
     { title: "#", dataIndex: "idLo", width: 60, align: "center" as const },
     { title: "Mã lô", dataIndex: "maLo", width: 110, align: "center" as const },
     { title: "Số lượng tồn", key: "soLuongTon", width: 140, align: "center" as const },
+    { title: "Đơn giá nhập", key: "donGiaNhap", width: 140, align: "right" as const },
     { title: "Hạn sử dụng (FEFO)", key: "hanSuDung", align: "center" as const },
     { title: "Ngày nhập", key: "ngayNhap", width: 150, align: "center" as const },
     { title: "Người nhập", dataIndex: "tenNhanVien", width: 130 },
@@ -258,23 +276,95 @@ const isExpiringSoon = (dateStr: string) => {
 // ============================================================
 // Data Loading
 // ============================================================
-const loadLo = async () => {
-  if (!props.nguyenLieu) return;
-  loadingLo.value = true;
+let detailSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
+
+const loadLo = (isBackground = false): Promise<void> => {
+  if (isUnmounted || !props.open || !props.nguyenLieu) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+const executeFetch = async (isBackground: boolean) => {
+  const sessionForThisRun = detailSession;
+  const currentId = props.nguyenLieu!.idNguyenLieu;
+
+  if (!isBackground) loadingLo.value = true;
   try {
     const res = await getLoNguyenLieu(
-      props.nguyenLieu.idNguyenLieu,
+      currentId,
       currentPage.value - 1,
       pageSize.value
     );
+    if (sessionForThisRun !== detailSession || !props.nguyenLieu || props.nguyenLieu.idNguyenLieu !== currentId || !props.open || isUnmounted) return;
     dsLo.value = res.data.data.content;
     total.value = res.data.data.totalElements;
+  } catch (error: any) {
+    if (sessionForThisRun === detailSession && !isUnmounted && !isBackground) {
+      console.error(error);
+    }
   } finally {
-    loadingLo.value = false;
+    if (sessionForThisRun === detailSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loadingLo.value = false;
+      }
+    }
   }
 };
 
+const consumePending = () => {
+  if (isUnmounted || !props.open || !props.nguyenLieu) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted || !props.open || !props.nguyenLieu) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      loadLo(true);
+    }
+  }, 300);
+};
+
 const onPageChange = (page: number, size: number) => {
+  detailSession++;
   currentPage.value = page;
   pageSize.value = size;
   loadLo();
@@ -287,6 +377,7 @@ const handleLockLo = async (idLo: number) => {
   try {
     await lockLoNguyenLieuApi(idLo);
     message.success('Đã khóa lô hàng thành công!');
+    detailSession++;
     await loadLo();
     emit('success');
     emit('refreshMainList');
@@ -299,6 +390,7 @@ const handleUnlockLo = async (idLo: number) => {
   try {
     await unlockLoNguyenLieuApi(idLo);
     message.success('Đã mở khóa lô hàng thành công!');
+    detailSession++;
     await loadLo();
     emit('success');
     emit('refreshMainList');
@@ -314,6 +406,7 @@ const closeNhapKho = () => {
   nhapKhoForm.maLo = "";
   nhapKhoForm.soLuongTon = null;
   nhapKhoForm.hanSuDung = null;
+  nhapKhoForm.donGiaNhap = null;
   isUpdate.value = false;
   nhapKhoFormRef.value?.clearValidate();
   openNhapKho.value = false;
@@ -330,10 +423,12 @@ const handleNhapKho = async () => {
       soLuongTon: nhapKhoForm.soLuongTon!,
       hanSuDung: dayjs(nhapKhoForm.hanSuDung!).format("YYYY-MM-DD"),
       idNhanVien: authStore.user!.idNhanVien!,
+      donGiaNhap: nhapKhoForm.donGiaNhap ?? null,
     });
 
     message.success("Nhập kho thành công!");
     closeNhapKho();
+    detailSession++;
     currentPage.value = 1;
     await loadLo();
     emit("success");
@@ -354,15 +449,49 @@ const handleNhapKho = async () => {
 // Watch
 // ============================================================
 watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen && props.nguyenLieu) {
+  () => [props.open, props.nguyenLieu] as const,
+  (newValues, oldValues) => {
+    const [isOpen, nguyenLieu] = newValues;
+    const [oldIsOpen, oldNguyenLieu] = oldValues || [false, null];
+
+    if (!isOpen || !nguyenLieu) {
+      detailSession++;
+      pendingRequests.forEach(req => req.resolve());
+      pendingRequests = [];
+      if (fetchTimeout) clearTimeout(fetchTimeout);
+      loadingLo.value = false;
+      dsLo.value = [];
+    } else if (isOpen && (!oldNguyenLieu || nguyenLieu.idNguyenLieu !== oldNguyenLieu.idNguyenLieu)) {
+      detailSession++;
       currentPage.value = 1;
       dsLo.value = [];
       loadLo();
+    } else if (isOpen && !oldIsOpen) {
+      loadLo();
     }
-  }
+  },
+  { immediate: true }
 );
+
+onMounted(() => {
+  unsubSync = onDataChanged((type) => {
+    if (['NGUYEN_LIEU_UPDATED', 'INVENTORY_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 10000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  detailSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+});
 </script>
 
 <style scoped>

@@ -59,8 +59,12 @@ export const getSanPhamSize = (idSanPham: number) => {
 // API: Hóa đơn
 // ============================================================
 
-export const taoHoaDon = (body: TaoHoaDonRequest) => {
-  return api.post("/hoa-don/offline", body);
+export const taoHoaDon = async (body: TaoHoaDonRequest) => {
+  const res = await api.post("/hoa-don/offline", body);
+  if (res.data?.code === 200) {
+    notifyDataChanged("HOA_DON_UPDATED", { idHoaDon: res.data?.data?.idHoaDon ?? res.data?.data });
+  }
+  return res;
 };
 
 export const getHoaDonOnline = (params: any) => {
@@ -76,8 +80,12 @@ export const getHoaDonById = (idHoaDon: number) => {
   return api.get(`/hoa-don/${idHoaDon}`);
 };
 
-export const huyHoaDon = (idHoaDon: number) => {
-  return api.patch(`/hoa-don/${idHoaDon}/huy`);
+export const huyHoaDon = async (idHoaDon: number) => {
+  const res = await api.patch(`/hoa-don/${idHoaDon}/huy`);
+  if (res.data?.code === 200) {
+    notifyDataChanged("HOA_DON_UPDATED", { idHoaDon });
+  }
+  return res;
 };
 
 export const apDungVoucher = (idHoaDon: number, body: ApDungVoucherRequest) => {
@@ -124,20 +132,36 @@ export const xoaTopping = (idHdctTopping: number) => {
 // API: Thanh toán
 // ============================================================
 
-export const thanhToan = (idHoaDon: number, body: ThanhToanRequest) => {
-  return api.post(`/hoa-don/${idHoaDon}/thanh-toan`, body);
+export const thanhToan = async (idHoaDon: number, body: ThanhToanRequest) => {
+  const res = await api.post(`/hoa-don/${idHoaDon}/thanh-toan`, body);
+  if (res.data?.code === 200) {
+    notifyDataChanged("HOA_DON_UPDATED", { idHoaDon });
+    notifyDataChanged("INVENTORY_UPDATED", { idHoaDon });
+    notifyDataChanged("VOUCHER_UPDATED", { idHoaDon });
+  }
+  return res;
 };
 
-export const taoThanhToanPayOS = (idHoaDon: number) => {
-  return api.post(`/hoa-don/${idHoaDon}/payos`);
+export const taoThanhToanPayOS = async (idHoaDon: number) => {
+  const res = await api.post(`/hoa-don/${idHoaDon}/payos`);
+  if (res.data?.code === 200) {
+    notifyDataChanged("HOA_DON_UPDATED", { idHoaDon });
+    notifyDataChanged("INVENTORY_UPDATED", { idHoaDon });
+  }
+  return res;
 };
 
 export const layTrangThaiPayOS = (idHoaDon: number) => {
   return api.get(`/hoa-don/${idHoaDon}/payos/status`);
 };
 
-export const huyThanhToanPayOS = (idHoaDon: number) => {
-  return api.post(`/hoa-don/${idHoaDon}/payos/cancel`);
+export const huyThanhToanPayOS = async (idHoaDon: number) => {
+  const res = await api.post(`/hoa-don/${idHoaDon}/payos/cancel`);
+  if (res.data?.code === 200) {
+    notifyDataChanged("HOA_DON_UPDATED", { idHoaDon });
+    notifyDataChanged("INVENTORY_UPDATED", { idHoaDon });
+  }
+  return res;
 };
 
 // ============================================================
@@ -176,7 +200,13 @@ export const boGiaoHangHoaDon = (idHoaDon: number) => {
 
 export const tiepNhanDonOnline = async (idHoaDon: number) => {
   const res = await api.post(`/hoa-don/${idHoaDon}/giao-hang/tiep-nhan`);
-  notifyDataChanged("GHN_UPDATED");
+  if (res.data?.code === 200) {
+    notifyDataChanged("GHN_UPDATED", { idHoaDon });
+    notifyDataChanged("ONLINE_ORDER_UPDATED", { idHoaDon });
+    notifyDataChanged("HOA_DON_UPDATED", { idHoaDon });
+    notifyDataChanged("INVENTORY_UPDATED", { idHoaDon });
+    notifyDataChanged("VOUCHER_UPDATED", { idHoaDon });
+  }
   return res;
 };
 

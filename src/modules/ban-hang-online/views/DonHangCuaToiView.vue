@@ -44,7 +44,7 @@
 
       <div v-else-if="error" class="error-state">
         <p class="text-danger">{{ error }}</p>
-        <button class="retry-btn" @click="fetchOrders">Thử lại</button>
+        <button class="retry-btn" @click="() => fetchOrders()">Thử lại</button>
       </div>
 
       <div v-else-if="filteredOrders.length === 0" class="empty-state">
@@ -113,6 +113,7 @@ const error = ref('');
 const filterStatus = ref('ALL');
 
 let cleanupAppSync: (() => void) | null = null;
+let donHangPollingInterval: ReturnType<typeof setInterval> | null = null;
 
 onMounted(() => {
   fetchOrders();
@@ -125,18 +126,27 @@ onMounted(() => {
       "APP_REVALIDATE"
     ];
     if (relevantEvents.includes(type)) {
-      fetchOrders();
+      fetchOrders(true);
     }
   });
+
+  donHangPollingInterval = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      fetchOrders(true);
+    }
+  }, 5000);
 });
 
 onUnmounted(() => {
   if (cleanupAppSync) cleanupAppSync();
+  if (donHangPollingInterval) clearInterval(donHangPollingInterval);
 });
 
-const fetchOrders = async () => {
-  loading.value = true;
-  error.value = '';
+const fetchOrders = async (silent = false) => {
+  if (!silent) {
+    loading.value = true;
+    error.value = '';
+  }
   try {
     const res = await getOnlineOrders();
     if (res.data.code === 200) {
@@ -146,12 +156,12 @@ const fetchOrders = async () => {
         orders.value = (res.data.data as any) || [];
       }
     } else {
-      error.value = res.data.message || 'Lỗi khi tải danh sách đơn hàng';
+      if (!silent) error.value = res.data.message || 'Lỗi khi tải danh sách đơn hàng';
     }
   } catch (err: any) {
-    error.value = err.response?.data?.message || 'Lỗi mạng khi tải danh sách';
+    if (!silent) error.value = err.response?.data?.message || 'Lỗi mạng khi tải danh sách';
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 };
 

@@ -81,6 +81,7 @@
       <PosOnlineOrderDetail
         v-if="selectedOrder"
         :orderId="selectedOrder.idHoaDon"
+        :open="drawerVisible"
         @refresh="fetchOrders"
       />
     </a-drawer>
@@ -88,10 +89,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { getHoaDonOnline } from '../api/posApi';
 import type { HoaDonListItem } from '../types/pos';
 import PosOnlineOrderDetail from './PosOnlineOrderDetail.vue';
+import { onDataChanged } from '@/utils/appSync';
 
 const keyword = ref('');
 const filterStatus = ref('ALL');
@@ -114,8 +116,35 @@ const columns = [
   { title: '', key: 'action', width: 120 },
 ];
 
-const fetchOrders = async () => {
-  loading.value = true;
+let listSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
+
+const fetchOrders = (isBackground = false): Promise<void> => {
+  if (isUnmounted) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+const executeFetch = async (isBackground: boolean) => {
+  const sessionForThisRun = listSession;
+
+  if (!isBackground) loading.value = true;
+
   try {
     const params: any = {
       page: pagination.value.current - 1,
@@ -124,7 +153,7 @@ const fetchOrders = async () => {
       direction: 'desc',
       keyword: keyword.value,
     };
-    
+
     if (filterStatus.value === 'CHO_XU_LY') {
       params.trangThaiVanDon = 'CHO_XU_LY';
     } else if (filterStatus.value === 'DA_TAO_DON') {
@@ -134,32 +163,97 @@ const fetchOrders = async () => {
     }
 
     const res = await getHoaDonOnline(params);
+    if (sessionForThisRun !== listSession || isUnmounted) return;
+
     if (res.data.code === 200) {
       dataSource.value = res.data.data.content;
       pagination.value.total = res.data.data.totalElements;
     }
   } catch (err) {
-    console.error(err);
+    if (sessionForThisRun === listSession && !isUnmounted && !isBackground) {
+      console.error(err);
+    }
   } finally {
-    loading.value = false;
+    if (sessionForThisRun === listSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loading.value = false;
+      }
+    }
   }
+};
+
+const consumePending = () => {
+  if (isUnmounted) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      fetchOrders(true);
+    }
+  }, 300);
 };
 
 onMounted(() => {
   fetchOrders();
+
+  unsubSync = onDataChanged((type) => {
+    if (['ONLINE_ORDER_UPDATED', 'HOA_DON_UPDATED', 'GHN_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 5000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  listSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
 });
 
 const onSearch = () => {
+  listSession++;
   pagination.value.current = 1;
   fetchOrders();
 };
 
 const onFilterChange = () => {
+  listSession++;
   pagination.value.current = 1;
   fetchOrders();
 };
 
 const handleTableChange = (pag: any) => {
+  listSession++;
   pagination.value.current = pag.current;
   pagination.value.pageSize = pag.pageSize;
   fetchOrders();

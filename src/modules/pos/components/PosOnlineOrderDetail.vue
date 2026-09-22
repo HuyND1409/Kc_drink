@@ -94,7 +94,7 @@
         <div class="right-column">
           <div class="delivery-card" v-if="deliveryInfo">
             <div class="section-title" style="margin-top: 0">Giao hàng</div>
-            
+
             <div class="info-row">
               <span class="info-label">Người nhận:</span>
               <span class="info-value">{{ deliveryInfo.tenNguoiNhan }} ({{ deliveryInfo.sdtNguoiNhan }})</span>
@@ -111,11 +111,11 @@
               <span class="info-label">Ghi chú:</span>
               <span class="info-value">{{ deliveryInfo.ghiChu }}</span>
             </div>
-            
+
             <div class="divider"></div>
-            
+
             <div class="section-title-sm">GHN</div>
-            
+
             <div class="info-row">
               <span class="info-label">Trạng thái:</span>
               <span class="info-value status-highlight">
@@ -132,7 +132,7 @@
               <span class="info-label">Dự kiến giao:</span>
               <span class="info-value">{{ formatDate(deliveryInfo.thoiGianGiaoDuKien) }}</span>
             </div>
-            
+
             <div class="ghn-actions">
               <template v-if="deliveryInfo.maVanDonGhn">
                 <a-button
@@ -142,7 +142,7 @@
                 >
                   Làm mới trạng thái GHN
                 </a-button>
-                
+
                 <a-button
                   v-if="getNextGhnAction(deliveryInfo.trangThaiGhn)"
                   type="primary"
@@ -152,7 +152,7 @@
                   Cập nhật: {{ getNextGhnAction(deliveryInfo.trangThaiGhn)?.label }}
                 </a-button>
               </template>
-              
+
               <a-button
                 v-else-if="canReceiveOrder"
                 type="primary"
@@ -161,11 +161,11 @@
               >
                 Nhận đơn
               </a-button>
-              
-              <a-button 
+
+              <a-button
                 v-else-if="canCreateGhnOrder"
-                type="primary" 
-                @click="createGhnOrder" 
+                type="primary"
+                @click="createGhnOrder"
                 :loading="creatingGhn"
               >
                 Tạo đơn GHN
@@ -180,13 +180,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import { getHoaDonById, getGiaoHangHoaDon, taoDonGhnHoaDon, lamMoiTrangThaiGhnHoaDon, tiepNhanDonOnline, giaLapTrangThaiGhnHoaDon } from '../api/posApi';
 import type { HoaDon, VanDonGhnResponse } from '../types/pos';
+import { onDataChanged } from '@/utils/appSync';
 
 const props = defineProps<{
   orderId: number;
+  open: boolean;
 }>();
 
 const emit = defineEmits(['refresh']);
@@ -221,8 +223,8 @@ const canCreateGhnOrder = computed(() => {
     ? order.value.trangThai === 'CHO_THANH_TOAN'
     : order.value.trangThai === 'DA_THANH_TOAN';
 
-  return paymentReady 
-    && deliveryInfo.value.trangThai === 'DA_TIEP_NHAN' 
+  return paymentReady
+    && deliveryInfo.value.trangThai === 'DA_TIEP_NHAN'
     && !deliveryInfo.value.maVanDonGhn;
 });
 
@@ -270,7 +272,7 @@ const simulateGhnStatus = (target: string, label: string) => {
         const res = await giaLapTrangThaiGhnHoaDon(props.orderId, target);
         if (res.data.code === 200) {
           message.success('Cập nhật trạng thái vận chuyển thành công');
-          await loadDetail();
+          await loadDetail(props.orderId);
           emit('refresh');
         } else {
           message.error(res.data.message || 'Không thể cập nhật trạng thái');
@@ -291,36 +293,144 @@ const productColumns = [
   { title: 'Thành tiền', key: 'thanhTien', width: 120, align: 'right' },
 ];
 
-const loadDetail = async () => {
-  if (!props.orderId) return;
-  loading.value = true;
+let detailSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
+
+const loadDetail = (id: number, isBackground = false): Promise<void> => {
+  if (isUnmounted || !props.open || !id) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(id, isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+const executeFetch = async (id: number, isBackground: boolean) => {
+  const sessionForThisRun = detailSession;
+
+  if (!isBackground) loading.value = true;
+
   try {
     const [resOrder, resDelivery] = await Promise.all([
-      getHoaDonById(props.orderId),
-      getGiaoHangHoaDon(props.orderId).catch(() => ({ data: { data: null } }))
+      getHoaDonById(id),
+      getGiaoHangHoaDon(id).catch(() => ({ data: { data: null } }))
     ]);
-    
+
+    if (sessionForThisRun !== detailSession || props.orderId !== id || !props.open || isUnmounted) return;
+
     if (resOrder.data.code === 200) {
       order.value = resOrder.data.data;
     }
-    
+
     if (resDelivery?.data?.code === 200) {
       deliveryInfo.value = resDelivery.data.data;
     }
   } catch (err) {
-    console.error(err);
-    message.error('Lỗi khi tải chi tiết đơn');
+    if (sessionForThisRun === detailSession && !isUnmounted && !isBackground) {
+      console.error(err);
+      message.error('Lỗi khi tải chi tiết đơn');
+    }
   } finally {
-    loading.value = false;
+    if (sessionForThisRun === detailSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loading.value = false;
+      }
+    }
   }
 };
 
-watch(() => props.orderId, () => {
-  loadDetail();
-});
+const consumePending = () => {
+  if (isUnmounted || !props.open || !props.orderId) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(props.orderId, isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted || !props.open || !props.orderId) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      loadDetail(props.orderId as number, true);
+    }
+  }, 300);
+};
+
+watch(
+  () => [props.open, props.orderId] as const,
+  (newValues, oldValues) => {
+    const [isOpen, orderId] = newValues;
+    const [oldIsOpen, oldOrderId] = oldValues || [false, null];
+
+    if (!isOpen || orderId == null) {
+      detailSession++;
+      pendingRequests.forEach(req => req.resolve());
+      pendingRequests = [];
+      if (fetchTimeout) clearTimeout(fetchTimeout);
+      loading.value = false;
+      order.value = null;
+      deliveryInfo.value = null;
+    } else if (isOpen && orderId !== oldOrderId) {
+      detailSession++;
+      order.value = null;
+      deliveryInfo.value = null;
+      loadDetail(orderId as number);
+    } else if (isOpen && !oldIsOpen) {
+      loadDetail(orderId as number);
+    }
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
-  loadDetail();
+  unsubSync = onDataChanged((type) => {
+    if (['ONLINE_ORDER_UPDATED', 'HOA_DON_UPDATED', 'GHN_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 5000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  detailSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
 });
 
 const receiveOrder = () => {
@@ -335,7 +445,7 @@ const receiveOrder = () => {
         const res = await tiepNhanDonOnline(props.orderId);
         if (res.data.code === 200) {
           message.success('Tiếp nhận đơn hàng thành công');
-          await loadDetail();
+          await loadDetail(props.orderId);
           emit('refresh');
         } else {
           message.error(res.data.message || 'Lỗi tiếp nhận đơn hàng');
@@ -362,7 +472,7 @@ const createGhnOrder = () => {
         const res = await taoDonGhnHoaDon(props.orderId);
         if (res.data.code === 200) {
           message.success('Tạo đơn GHN thành công');
-          await loadDetail();
+          await loadDetail(props.orderId);
           emit('refresh');
         } else {
           message.error(res.data.message || 'Lỗi tạo đơn GHN');
@@ -383,7 +493,7 @@ const refreshGhnStatus = async () => {
     const res = await lamMoiTrangThaiGhnHoaDon(props.orderId);
     if (res.data.code === 200) {
       message.success('Làm mới trạng thái thành công');
-      await loadDetail();
+      await loadDetail(props.orderId);
       emit('refresh');
     } else {
       message.error(res.data.message || 'Lỗi cập nhật');

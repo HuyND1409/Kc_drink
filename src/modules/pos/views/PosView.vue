@@ -8,7 +8,8 @@
       <div class="pos-left-header">
         <span class="pos-title">🛒 Bán hàng tại quầy</span>
         <a-input-search v-model:value="keyword" placeholder="Tìm sản phẩm..." allow-clear style="width: 240px"
-          @search="onSearch" @clear="onSearch" />
+          @search="onSearch" @input="onKeywordInput" @compositionstart="onCompositionStart"
+          @compositionend="onCompositionEnd" />
       </div>
 
       <!-- Vùng scroll sản phẩm: flex:1 để pagination luôn nằm cuối -->
@@ -205,7 +206,7 @@
                 style="margin-left:auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2">
                 <span class="item-unit-price-original" v-if="ct.tienGiamKhuyenMai"
                   style="font-size: 10px; color: #8c8c8c; text-decoration: line-through">{{ formatVND(ct.giaGoc ??
-                  ct.donGia)
+                    ct.donGia)
                   }}/món</span>
                 <span class="item-unit-price" :style="{ color: ct.tienGiamKhuyenMai ? '#ff4d4f' : 'inherit' }">{{
                   formatVND(ct.donGia) }}/món</span>
@@ -328,8 +329,7 @@
   <!-- Modal chọn topping -->
   <ToppingPickerModal :open="toppingModalOpen" :id-chi-tiet="selectedChiTietId"
     :existing-toppings="activeHoaDon?.chiTiet?.find(ct => ct.idHoaDonChiTiet === selectedChiTietId)?.toppingList || []"
-    @close="toppingModalOpen = false"
-    @confirm="onToppingConfirm" />
+    @close="toppingModalOpen = false" @confirm="onToppingConfirm" />
 
   <!-- Modal chọn khách hàng -->
   <CustomerPickerModal :open="customerModalOpen" @close="customerModalOpen = false" @select="onCustomerSelect" />
@@ -341,14 +341,15 @@
   <PayOSPaymentModal :open="payosModalOpen" :hoa-don="activeHoaDon" @close="payosModalOpen = false"
     @created="onPayOSCreated" @paid="onPayOSPaid" @expired="onPayOSExpired" @cancelled="onPayOSCancelled" />
 
-  <PosPaymentSuccessModal :open="paymentSuccessModalOpen" :hoa-don="paymentSuccessHoaDon" :van-don="paymentSuccessVanDon"
-    @close="onPaymentSuccessModalClose" />
+  <PosPaymentSuccessModal :open="paymentSuccessModalOpen" :hoa-don="paymentSuccessHoaDon"
+    :van-don="paymentSuccessVanDon" @close="onPaymentSuccessModalClose" />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { message, Modal, notification } from "ant-design-vue";
 import { useAuthStore } from "@/modules/auth/store/authStore";
+import { onDataChanged } from "@/utils/appSync";
 
 import SizePickerModal from "../components/SizePickerModal.vue";
 import ToppingPickerModal from "../components/ToppingPickerModal.vue";
@@ -515,8 +516,39 @@ const replaceInvoice = (updated: HoaDon) => {
 // ============================================================
 // Load sản phẩm
 // ============================================================
-const loadSanPham = async () => {
-  loadingSanPham.value = true;
+let currentLoadId = 0;
+let isFetching = false;
+let pendingRequest: "normal" | "background" | null = null;
+let debounceTimer: number | null = null;
+let pollTimer: number | null = null;
+let unsubscribeSync: (() => void) | null = null;
+let isComponentUnmounted = false;
+
+const scheduleLoad = (type: "normal" | "background") => {
+  if (isComponentUnmounted) return;
+  if (type === "background" && document.visibilityState !== "visible") return;
+
+  if (!pendingRequest || type === "normal") {
+    pendingRequest = type;
+  }
+
+  if (!isFetching) {
+    executeNextLoad();
+  }
+};
+
+const executeNextLoad = async () => {
+  if (isComponentUnmounted || !pendingRequest) return;
+
+  const reqType = pendingRequest;
+  pendingRequest = null;
+  isFetching = true;
+  const loadId = ++currentLoadId;
+
+  if (reqType === "normal") {
+    loadingSanPham.value = true;
+  }
+
   try {
     const res = await getSanPham(
       currentPage.value - 1,
@@ -525,17 +557,83 @@ const loadSanPham = async () => {
       "asc",
       keyword.value
     );
-    const data = res.data?.data;
-    dsSanPham.value = data?.content ?? [];
-    total.value = data?.totalElements ?? 0;
+    if (loadId === currentLoadId && !isComponentUnmounted) {
+      const data = res.data?.data;
+      dsSanPham.value = data?.content ?? [];
+      total.value = data?.totalElements ?? 0;
+    }
   } catch (err: any) {
-    message.error(err.response?.data?.message || "Không thể tải danh sách sản phẩm");
+    if (loadId === currentLoadId && !isComponentUnmounted && reqType === "normal") {
+      message.error(err.response?.data?.message || "Không thể tải danh sách sản phẩm");
+    }
   } finally {
-    loadingSanPham.value = false;
+    if (loadId === currentLoadId && !isComponentUnmounted && reqType === "normal") {
+      loadingSanPham.value = false;
+    }
+
+    isFetching = false;
+
+    if (pendingRequest && !isComponentUnmounted) {
+      const nextType = pendingRequest;
+      pendingRequest = null;
+      if (nextType === "background") {
+        triggerBackgroundReload();
+      } else {
+        scheduleLoad("normal");
+      }
+    }
   }
 };
 
+const loadSanPham = () => {
+  ++currentLoadId;
+  scheduleLoad("normal");
+};
+
+const triggerBackgroundReload = () => {
+  if (isComponentUnmounted || document.visibilityState !== "visible") return;
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = window.setTimeout(() => {
+    scheduleLoad("background");
+  }, 300);
+};
+
+let searchTimer: number | null = null;
+let isComposing = false;
+
+const onCompositionStart = () => {
+  isComposing = true;
+};
+
+const onCompositionEnd = () => {
+  isComposing = false;
+  onKeywordInput();
+};
+
+const onKeywordInput = () => {
+  if (isComposing) return;
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
+  if (!keyword.value) {
+    currentPage.value = 1;
+    loadSanPham();
+    return;
+  }
+  ++currentLoadId; // Vô hiệu hóa kết quả cũ
+  searchTimer = window.setTimeout(() => {
+    searchTimer = null;
+    currentPage.value = 1;
+    loadSanPham();
+  }, 350);
+};
+
 const onSearch = () => {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
   currentPage.value = 1;
   loadSanPham();
 };
@@ -1180,11 +1278,33 @@ const restoreHoaDon = async () => {
 };
 
 // ============================================================
-// Init
+// Init & Cleanup
 // ============================================================
 onMounted(() => {
   loadSanPham();
   restoreHoaDon();
+
+  unsubscribeSync = onDataChanged((type) => {
+    if (["PRODUCT_UPDATED", "KHUYEN_MAI_UPDATED", "SIZE_UPDATED", "APP_REVALIDATE"].includes(type)) {
+      triggerBackgroundReload();
+    }
+  });
+
+  pollTimer = window.setInterval(() => {
+    if (document.visibilityState === "visible") {
+      triggerBackgroundReload();
+    }
+  }, 5000);
+});
+
+onUnmounted(() => {
+  isComponentUnmounted = true;
+  ++currentLoadId; // Hủy các lượt tải đang chờ
+  if (debounceTimer) clearTimeout(debounceTimer);
+  if (searchTimer) clearTimeout(searchTimer);
+  if (pollTimer) clearInterval(pollTimer);
+  if (unsubscribeSync) unsubscribeSync();
+  loadingSanPham.value = false;
 });
 </script>
 
@@ -1222,12 +1342,16 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  padding: 12px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .pos-title {
   font-size: 18px;
   font-weight: 700;
   color: #262626;
+  white-space: nowrap;
 }
 
 /*

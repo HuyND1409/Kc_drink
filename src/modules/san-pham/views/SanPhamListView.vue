@@ -33,10 +33,10 @@
       </div>
 
       <div style="display:flex;gap:12px;">
-        <a-button type="default" size="large" @click="openSizeManagement">
+        <a-button v-if="isAdmin" type="default" size="large" @click="openSizeManagement">
           Quản lý size
         </a-button>
-        <a-button type="primary" size="large" @click="onAdd">
+        <a-button v-if="isAdmin" type="primary" size="large" @click="onAdd">
           + Thêm sản phẩm
         </a-button>
       </div>
@@ -106,14 +106,16 @@
             <template #overlay>
               <a-menu>
                 <a-menu-item @click="openDrawer(record)">Công thức</a-menu-item>
-                <a-menu-item @click="onEdit(record)">Sửa</a-menu-item>
-                <a-menu-divider />
-                <a-menu-item v-if="record.trangThai === 1" danger @click="confirmLock(record)">
-                  Ngừng bán
-                </a-menu-item>
-                <a-menu-item v-else style="color:#52c41a;" @click="confirmUnlock(record)">
-                  Mở bán
-                </a-menu-item>
+                <template v-if="isAdmin">
+                  <a-menu-item @click="onEdit(record)">Sửa</a-menu-item>
+                  <a-menu-divider />
+                  <a-menu-item v-if="record.trangThai === 1" danger @click="confirmLock(record)">
+                    Ngừng bán
+                  </a-menu-item>
+                  <a-menu-item v-else style="color:#52c41a;" @click="confirmUnlock(record)">
+                    Mở bán
+                  </a-menu-item>
+                </template>
               </a-menu>
             </template>
           </a-dropdown>
@@ -158,9 +160,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, computed } from "vue";
 import { message, Modal } from "ant-design-vue";
 import { MoreOutlined } from "@ant-design/icons-vue";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import type { AxiosError } from "axios";
 
 import SanPhamForm from "../components/SanPhamForm.vue";
@@ -188,6 +191,9 @@ import type { SanPham, SanPhamRequest, SanPhamSize, ProductSizeSelection, SanPha
 // ============================================================
 // State
 // ============================================================
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
+
 const dsSanPham = ref<SanPham[]>([]);
 const loading = ref(false);
 const openModal = ref(false);

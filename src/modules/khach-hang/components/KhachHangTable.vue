@@ -47,25 +47,29 @@
                 Xem chi tiết
               </a-menu-item>
 
-              <a-menu-item @click="$emit('edit', record)">
-                <EditOutlined />
-                Sửa
-              </a-menu-item>
+              <template v-if="isAdmin">
+                <a-menu-item @click="$emit('edit', record)">
+                  <EditOutlined />
+                  Sửa
+                </a-menu-item>
+              </template>
 
               <a-menu-item @click="$emit('address', record)">
                 <HomeOutlined />
                 Địa chỉ
               </a-menu-item>
 
-              <a-menu-item v-if="record.trangThai === 1" danger @click="$emit('lock', record.idKhachHang)">
-                <LockOutlined />
-                Khóa
-              </a-menu-item>
+              <template v-if="isAdmin">
+                <a-menu-item v-if="record.trangThai === 1" danger @click="$emit('lock', record.idKhachHang)">
+                  <LockOutlined />
+                  Khóa
+                </a-menu-item>
 
-              <a-menu-item v-else @click="$emit('unlock', record.idKhachHang)">
-                <UnlockOutlined />
-                Mở khóa
-              </a-menu-item>
+                <a-menu-item v-else @click="$emit('unlock', record.idKhachHang)">
+                  <UnlockOutlined />
+                  Mở khóa
+                </a-menu-item>
+              </template>
 
             </a-menu>
           </template>
@@ -79,7 +83,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import type { KhachHang } from "../types/khachHang";
 import KhachHangDetailModal from "./KhachHangDetailModal.vue";
 
@@ -91,6 +96,9 @@ import {
   UnlockOutlined,
   EyeOutlined,
 } from "@ant-design/icons-vue";
+
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 
 const detailVisible = ref(false);
 const detailRecord = ref<KhachHang>();

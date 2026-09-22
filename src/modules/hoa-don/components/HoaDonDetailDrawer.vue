@@ -148,11 +148,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import { getChiTietHoaDon, getGiaoHangHoaDon, lamMoiTrangThaiGhn, giaLapTrangThaiGhn } from "../api/hoaDonApi";
 import type { HoaDonDetail, VanDonGhnResponse } from "../types/hoaDon";
 import dayjs from "dayjs";
+import { onDataChanged } from '@/utils/appSync';
 
 const props = defineProps<{
   open: boolean;
@@ -173,7 +174,7 @@ const vanDon = ref<VanDonGhnResponse | null>(null);
 const nextGhnStep = computed(() => {
   if (!vanDon.value?.trangThaiGhn) return null;
   const current = vanDon.value.trangThaiGhn;
-  
+
   const map: Record<string, { key: string; label: string }> = {
     ready_to_pick: { key: 'picking', label: 'Đang lấy hàng' },
     picking: { key: 'picked', label: 'Đã lấy hàng' },
@@ -181,13 +182,13 @@ const nextGhnStep = computed(() => {
     transporting: { key: 'delivering', label: 'Đang giao hàng' },
     delivering: { key: 'delivered', label: 'Đã giao hàng' }
   };
-  
+
   return map[current] || null;
 });
 
 const onGiaLapGhn = async () => {
   if (!props.idHoaDon || !nextGhnStep.value) return;
-  
+
   loadingGiaLap.value = true;
   try {
     const res = await giaLapTrangThaiGhn(props.idHoaDon, nextGhnStep.value.key);
@@ -205,53 +206,162 @@ const onGiaLapGhn = async () => {
   }
 };
 
-const fetchDetail = async (id: number) => {
-  loading.value = true;
+let detailSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
+
+const fetchDetail = (id: number, isBackground = false): Promise<void> => {
+  if (isUnmounted || !props.open || !props.idHoaDon) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(id, isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+const executeFetch = async (id: number, isBackground: boolean) => {
+  const sessionForThisRun = detailSession;
+
+  if (!isBackground) loading.value = true;
+
   try {
     const resHd = await getChiTietHoaDon(id);
+
+    if (sessionForThisRun !== detailSession || props.idHoaDon !== id || !props.open || isUnmounted) return;
+
     hoaDon.value = resHd.data?.data ?? resHd.data;
 
     try {
       const resVd = await getGiaoHangHoaDon(id);
+      if (sessionForThisRun !== detailSession || props.idHoaDon !== id || !props.open || isUnmounted) return;
       vanDon.value = resVd.data?.data ?? resVd.data;
     } catch (err: any) {
-  const errorMessage = err.response?.data?.message || "";
+      if (sessionForThisRun !== detailSession || props.idHoaDon !== id || !props.open || isUnmounted) return;
+      const errorMessage = err.response?.data?.message || "";
 
-  if (
-    err.response?.status === 400 &&
-    (
-      errorMessage.includes("không có thông tin giao hàng") ||
-      errorMessage.includes("chưa thiết lập giao hàng")
-    )
-  ) {
-    vanDon.value = null;
-  } else {
-    message.error(
-      errorMessage || "Lỗi khi tải thông tin giao hàng"
-    );
-    console.error(err);
-  }
-}
+      if (
+        err.response?.status === 400 &&
+        (
+          errorMessage.includes("không có thông tin giao hàng") ||
+          errorMessage.includes("chưa thiết lập giao hàng")
+        )
+      ) {
+        vanDon.value = null;
+      } else {
+        if (!isBackground) {
+          message.error(errorMessage || "Lỗi khi tải thông tin giao hàng");
+          console.error(err);
+        }
+      }
+    }
   } catch (err) {
-    message.error("Lỗi khi tải chi tiết hóa đơn");
-    console.error(err);
+    if (sessionForThisRun === detailSession && !isUnmounted && !isBackground) {
+      message.error("Lỗi khi tải chi tiết hóa đơn");
+      console.error(err);
+    }
   } finally {
-    loading.value = false;
+    if (sessionForThisRun === detailSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loading.value = false;
+      }
+    }
   }
+};
+
+const consumePending = () => {
+  if (isUnmounted || !props.open || !props.idHoaDon) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(props.idHoaDon, isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted || !props.open || !props.idHoaDon) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      fetchDetail(props.idHoaDon as number, true);
+    }
+  }, 300);
 };
 
 watch(
   () => [props.open, props.idHoaDon] as const,
-  ([isOpen, idHoaDon]) => {
-    if (isOpen && idHoaDon != null) {
-      fetchDetail(idHoaDon);
-    } else {
+  (newValues, oldValues) => {
+    const [isOpen, idHoaDon] = newValues;
+    const [oldIsOpen, oldIdHoaDon] = oldValues || [false, null];
+
+    if (!isOpen || idHoaDon == null) {
+      detailSession++;
+      pendingRequests.forEach(req => req.resolve());
+      pendingRequests = [];
+      if (fetchTimeout) clearTimeout(fetchTimeout);
+      loading.value = false;
+      loadingGhn.value = false;
       hoaDon.value = null;
       vanDon.value = null;
+    } else if (isOpen && idHoaDon !== oldIdHoaDon) {
+      detailSession++;
+      hoaDon.value = null;
+      vanDon.value = null;
+      fetchDetail(idHoaDon as number);
+    } else if (isOpen && !oldIsOpen) {
+      // Just opened, same ID
+      fetchDetail(idHoaDon as number);
     }
   },
   { immediate: true }
 );
+
+onMounted(() => {
+  unsubSync = onDataChanged((type) => {
+    if (['ONLINE_ORDER_UPDATED', 'HOA_DON_UPDATED', 'GHN_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 10000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  detailSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+});
 
 const onRefreshGhn = async () => {
   if (!props.idHoaDon) return;

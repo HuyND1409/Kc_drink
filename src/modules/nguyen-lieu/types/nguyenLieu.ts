@@ -9,6 +9,7 @@ export interface NguyenLieu {
     tongTonKho: number;
     nguongTonKho: number;
     trangThai: number;
+    giaNhapGanNhat?: number | null;
 }
 
 export interface NguyenLieuRequest {
@@ -41,6 +42,7 @@ export interface LoNguyenLieu {
     tenNhanVien: string; // Tên nhân viên nhập kho
     trangThaiHsd?: string; // BỔ SUNG: "Còn hạn", "Sắp hết hạn", "Hết hạn!"
     trangThai?: number;
+    donGiaNhap?: number | null;
 }
 export interface LoNguyenLieuRequest {
     maLo: string;
@@ -48,4 +50,5 @@ export interface LoNguyenLieuRequest {
     soLuongTon: number;
     hanSuDung: string; // "YYYY-MM-DD"
     idNhanVien: number; // ID nhân viên nhập kho
+    donGiaNhap?: number | null;
 }

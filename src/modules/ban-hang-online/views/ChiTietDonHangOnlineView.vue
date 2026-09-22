@@ -215,6 +215,7 @@ const cancelReason = ref('');
 let cleanupAppSync: (() => void) | null = null;
 let countdownInterval: any = null;
 let revalidateInterval: any = null;
+let orderStatusPollInterval: any = null;
 
 const countdownTime = ref(0);
 const countdownText = ref('');
@@ -339,12 +340,24 @@ onMounted(() => {
       doFetchDetail(true);
     }
   });
+
+  // Fallback polling 5s cho general order status.
+  // Nếu revalidateInterval (QR expiry) đang chạy thì skip để tránh gọi API trùng.
+  orderStatusPollInterval = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    if (revalidateInterval) return; // QR expiry đang tự poll, bỏ qua
+    doFetchDetail(true);
+  }, 5000);
 });
 
 onUnmounted(() => {
   if (cleanupAppSync) cleanupAppSync();
   stopCountdown();
   stopRevalidate();
+  if (orderStatusPollInterval) {
+    clearInterval(orderStatusPollInterval);
+    orderStatusPollInterval = null;
+  }
 });
 
 const doFetchDetail = async (silent: boolean) => {
@@ -394,12 +407,15 @@ const canCancel = computed(() => {
 
 const canResumePayment = computed(() => {
   if (!order.value) return false;
-  // Only for CHUYEN_KHOAN orders
+  // Chỉ áp dụng cho đơn CHUYEN_KHOAN
   if (order.value.hinhThucThanhToan === 'TIEN_MAT') return false;
+  // Chỉ khi đơn còn CHO_THANH_TOAN
   if (order.value.trangThai !== 'CHO_THANH_TOAN') return false;
+  // Đã thanh toán: không cho tạo QR
   if (order.value.payosStatus === 'PAID') return false;
-  if (order.value.payosStatus === 'EXPIRED') return false;
-  // Nếu QR bị hủy bởi POS (maLyDoCho === 'POS_UU_TIEN') vẫn giữ nút thanh toán lại
+  // PENDING: cho tiếp tục thanh toán
+  // CANCELLED hoặc EXPIRED: cho thanh toán lại (kể cả POS_UU_TIEN)
+  // null (chưa tạo QR lần nào): cho tạo QR
   return true;
 });
 
@@ -414,12 +430,17 @@ const handleResumePayment = async () => {
   try {
     const res = await createOnlinePayment(idHoaDon);
     if (res.data.code === 200) {
-      const data = res.data.data as any;
-      const isPaid =
-        data.daThanhToan ||
-        data.trangThaiDonHang === 'DA_THANH_TOAN' ||
-        data.payosStatus === 'PAID';
-      if (isPaid) {
+      // createOnlinePayment trả PayOSCreateResponse
+      // BE có thể trả thêm status='PAID' khi đơn đã được thanh toán
+      // trong khoảng thời gian từ lúc FE tạo QR đến lúc khách mở modal
+      const data = res.data.data;
+      if (!data || typeof data !== 'object') {
+        message.warning('Phản hồi không hợp lệ. Vui lòng thử lại.');
+        return;
+      }
+      const dataWithStatus = data as typeof data & { status?: string };
+      if (dataWithStatus.status === 'PAID') {
+        // Đơn đã thanh toán: xóa dữ liệu QR tạm, dừng countdown, thông báo
         showCheckoutModal.value = false;
         resumePaymentData.value = null;
         cancelReason.value = '';
@@ -428,11 +449,21 @@ const handleResumePayment = async () => {
         await doFetchDetail(true);
         return;
       }
-      // Xóa thông báo lý do cũ khi tạo QR mới thành công
-      cancelReason.value = '';
-      resumePaymentData.value = data;
-      showCheckoutModal.value = true;
+
+      if (dataWithStatus.status === 'PENDING' && dataWithStatus.checkoutUrl) {
+        // Phản hồi PENDING hợp lệ: xóa lý do cũ, mở modal QR
+        cancelReason.value = '';
+        dataWithStatus.qrCode = dataWithStatus.qrCode || '';
+        resumePaymentData.value = dataWithStatus;
+        showCheckoutModal.value = true;
+      } else {
+        // Phản hồi CANCELLED/EXPIRED/trạng thái lạ/thiếu status hoặc không có URL:
+        // không mở QR, không xóa lý do cũ
+        message.warning('Không thể mở trang thanh toán. Vui lòng thử lại hoặc kiểm tra trạng thái đơn hàng.');
+        await doFetchDetail(true);
+      }
     } else {
+      // Giữ lý do cũ nếu API tạo QR thất bại
       message.error(res.data.message || 'Không thể tạo link thanh toán');
     }
   } catch (err: any) {

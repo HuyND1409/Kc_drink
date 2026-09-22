@@ -12,20 +12,20 @@
       <div class="toolbar-left">
 
         <a-input-search v-model:value="keyword" placeholder="Tìm theo tên nguyên liệu..." allow-clear
-          style="width:300px" @search="onSearch" />
+          style="width:300px" @search="onSearch()" />
 
-        <a-select v-model:value="trangThai" placeholder="Trạng thái" allow-clear style="width:160px" @change="onSearch">
+        <a-select v-model:value="trangThai" placeholder="Trạng thái" allow-clear style="width:160px" @change="onSearch()">
           <a-select-option :value="1">Hoạt động</a-select-option>
           <a-select-option :value="0">Đã khóa</a-select-option>
         </a-select>
 
-        <a-select v-model:value="sortBy" placeholder="Sắp xếp theo" style="width:170px" @change="loadData">
+        <a-select v-model:value="sortBy" placeholder="Sắp xếp theo" style="width:170px" @change="onSortChange()">
           <a-select-option value="idNguyenLieu">Mã NL</a-select-option>
           <a-select-option value="tenNguyenLieu">Tên NL</a-select-option>
           <a-select-option value="tongTonKho">Tồn kho</a-select-option>
         </a-select>
 
-        <a-select v-model:value="direction" style="width:120px" @change="loadData">
+        <a-select v-model:value="direction" style="width:120px" @change="onSortChange()">
           <a-select-option value="asc">Tăng dần</a-select-option>
           <a-select-option value="desc">Giảm dần</a-select-option>
         </a-select>
@@ -40,13 +40,15 @@
       <div style="display: flex; gap: 8px; align-items: center;">
 
         <!-- NÚT IMPORT EXCEL -->
-        <a-button v-if="isAdmin" :loading="loadingImport" size="large"
-          style="background-color: #217346; color: #fff; border-color: #217346;" @click="triggerFileInput">
-          <template #icon>
-            <FileExcelOutlined />
-          </template>
-          Import Excel
-        </a-button>
+        <a-tooltip title="Excel: A(Mã lô), B(ID NL), C(Số lượng), D(Hạn SD), E(Đơn giá - tùy chọn). Dòng 1 là tiêu đề.">
+          <a-button v-if="isAdmin" :loading="loadingImport" size="large"
+            style="background-color: #217346; color: #fff; border-color: #217346;" @click="triggerFileInput">
+            <template #icon>
+              <FileExcelOutlined />
+            </template>
+            Import Excel
+          </a-button>
+        </a-tooltip>
 
         <!-- INPUT FILE ẨN -->
         <input ref="fileInputRef" type="file" accept=".xlsx" style="display: none" @change="handleFileUpload" />
@@ -80,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from "vue";
+import { onMounted, onUnmounted, ref, computed } from "vue";
 import { message } from "ant-design-vue";
 import type { AxiosError } from "axios";
 import { FileExcelOutlined } from "@ant-design/icons-vue";
@@ -89,6 +91,7 @@ import { useAuthStore } from "@/modules/auth/store/authStore";
 import NguyenLieuTable from "../components/NguyenLieuTable.vue";
 import NguyenLieuForm from "../components/NguyenLieuForm.vue";
 import LoNguyenLieuDrawer from "../components/LoNguyenLieuDrawer.vue";
+import { onDataChanged } from "@/utils/appSync";
 
 import { getNguyenLieu, createNguyenLieu, lockNguyenLieu, unlockNguyenLieu, importLoNguyenLieuApi } from "@/modules/nguyen-lieu/api/nguyenLieuApi";
 import type { NguyenLieu, NguyenLieuRequest } from "../types/nguyenLieu";
@@ -146,11 +149,16 @@ const handleFileUpload = async (event: Event) => {
   loadingImport.value = true;
   try {
     const res = await importLoNguyenLieuApi(formData);
-    message.success(res.data?.message || "Import danh sách lô nguyên liệu thành công!");
 
-    // Reset về trang 1 và load lại danh sách (cập nhật tổng tồn kho)
-    currentPage.value = 1;
-    await loadData();
+    if (res.data?.code === 200) {
+      message.success(res.data?.message || "Import danh sách lô nguyên liệu thành công!");
+      // Reset về trang 1 và load lại danh sách (cập nhật tổng tồn kho)
+      listSession++;
+      currentPage.value = 1;
+      await loadData();
+    } else {
+      message.error(res.data?.message || "Có lỗi xảy ra khi import file Excel!");
+    }
   } catch (error: any) {
     const errorMsg = error.response?.data?.message || "Có lỗi xảy ra khi import file Excel!";
     message.error(errorMsg);
@@ -163,8 +171,34 @@ const handleFileUpload = async (event: Event) => {
 // ============================================================
 // Load danh sách nguyên liệu
 // ============================================================
-const loadData = async () => {
-  loading.value = true;
+let listSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
+
+const loadData = (isBackground = false): Promise<void> => {
+  if (isUnmounted) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+const executeFetch = async (isBackground: boolean) => {
+  const sessionForThisRun = listSession;
+
+  if (!isBackground) loading.value = true;
   try {
     const res = await getNguyenLieu(
       keyword.value,
@@ -174,19 +208,73 @@ const loadData = async () => {
       sortBy.value,
       direction.value
     );
+    if (sessionForThisRun !== listSession || isUnmounted) return;
     dsNguyenLieu.value = res.data.data.content;
     total.value = res.data.data.totalElements;
+  } catch (error: any) {
+    if (sessionForThisRun === listSession && !isUnmounted && !isBackground) {
+      console.error(error);
+      const err = error as AxiosError<{ message: string }>;
+      message.error(err.response?.data?.message || "Có lỗi xảy ra khi tải dữ liệu");
+    }
   } finally {
-    loading.value = false;
+    if (sessionForThisRun === listSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loading.value = false;
+      }
+    }
   }
 };
 
+const consumePending = () => {
+  if (isUnmounted) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      loadData(true);
+    }
+  }, 300);
+};
+
+const onSortChange = () => {
+  listSession++;
+  loadData(false);
+};
+
 const onSearch = () => {
+  listSession++;
   currentPage.value = 1;
   loadData();
 };
 
 const resetFilter = () => {
+  listSession++;
   keyword.value = "";
   trangThai.value = undefined;
   sortBy.value = "idNguyenLieu";
@@ -196,6 +284,7 @@ const resetFilter = () => {
 };
 
 const onPageChange = (page: number, size: number) => {
+  listSession++;
   currentPage.value = page;
   pageSize.value = size;
   loadData();
@@ -209,6 +298,7 @@ const saveNguyenLieu = async (data: NguyenLieuRequest) => {
     await createNguyenLieu(data);
     message.success("Thêm nguyên liệu thành công!");
     openModal.value = false;
+    listSession++;
     await loadData();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
@@ -229,6 +319,24 @@ const onViewLo = (record: NguyenLieu) => {
 // ============================================================
 onMounted(() => {
   loadData();
+
+  unsubSync = onDataChanged((type) => {
+    if (['NGUYEN_LIEU_UPDATED', 'INVENTORY_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 10000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  listSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
 });
 
 // ============================================================
@@ -238,6 +346,7 @@ const onLock = async (id: number) => {
   try {
     await lockNguyenLieu(id);
     message.success("Đã khóa nguyên liệu");
+    listSession++;
     loadData();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
@@ -253,6 +362,7 @@ const onUnlock = async (id: number) => {
   try {
     await unlockNguyenLieu(id);
     message.success("Đã mở khóa nguyên liệu");
+    listSession++;
     loadData();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;

@@ -80,6 +80,8 @@ const cancelReason = ref('');
 const loading = ref(true);
 const error = ref('');
 let pollInterval: any = null;
+let redirectTimeout: ReturnType<typeof setTimeout> | null = null;
+let isUnmounted = false;
 
 onMounted(async () => {
   if (!idHoaDon) {
@@ -92,6 +94,7 @@ onMounted(async () => {
     if (detail.data.code === 200) {
       const ord = detail.data.data;
       if (ord.hinhThucThanhToan === 'TIEN_MAT') {
+        if (isUnmounted) return;
         router.replace(`/shop/orders/${idHoaDon}`);
         return;
       }
@@ -99,24 +102,53 @@ onMounted(async () => {
   } catch {
     // On error, fall through to initPayment which will handle it
   }
+  if (isUnmounted) return;
   initPayment();
 });
 
 onUnmounted(() => {
+  isUnmounted = true;
   stopPolling();
+  if (redirectTimeout) {
+    clearTimeout(redirectTimeout);
+    redirectTimeout = null;
+  }
 });
 
 const initPayment = async () => {
+  if (isUnmounted || status.value === 'PAID') return;
   loading.value = true;
   error.value = '';
   try {
     const res = await createOnlinePayment(idHoaDon);
+    if (isUnmounted) return;
+
     if (res.data.code === 200) {
-      checkoutUrl.value = res.data.data.checkoutUrl;
-      if (res.data.data.qrCode) {
-        qrCode.value = res.data.data.qrCode;
+      const data = res.data.data;
+      if (!data || typeof data !== 'object') {
+        error.value = 'Phản hồi không hợp lệ. Vui lòng kiểm tra trạng thái đơn hàng.';
+        return;
       }
-      startPolling();
+      const dataWithStatus = data as typeof data & { status?: string };
+      // BE có thể trả status='PAID' nếu đơn đã được thanh toán trước đó
+      if (dataWithStatus.status === 'PAID') {
+        // Không mở trang chờ trả tiền, không khởi động polling - đi thẳng nhánh thành công
+        handlePaid();
+        return;
+      }
+
+      // Ngăn PENDING đến muộn khi đã PAID
+      if (status.value === 'PAID') {
+        return;
+      }
+
+      if (dataWithStatus.status === 'PENDING' && dataWithStatus.checkoutUrl) {
+        checkoutUrl.value = dataWithStatus.checkoutUrl;
+        qrCode.value = dataWithStatus.qrCode || '';
+        startPolling();
+      } else {
+        error.value = 'Không thể tạo link thanh toán. Vui lòng kiểm tra trạng thái đơn hàng.';
+      }
     } else {
       error.value = res.data.message || 'Không thể tạo link thanh toán';
     }
@@ -127,7 +159,11 @@ const initPayment = async () => {
   }
 };
 
-const applyStatusData = (data: any) => {
+const applyStatusData = (data: any): boolean => {
+  if (isUnmounted) return false;
+  if (status.value === 'PAID') return true;
+  if (!data || typeof data !== 'object') return false;
+
   const isPaid =
     data.daThanhToan === true ||
     data.trangThaiDonHang === 'DA_THANH_TOAN' ||
@@ -135,7 +171,7 @@ const applyStatusData = (data: any) => {
 
   if (isPaid) {
     handlePaid();
-    return;
+    return true;
   }
 
   const isCancelled =
@@ -151,6 +187,9 @@ const applyStatusData = (data: any) => {
       cancelReason.value = data.lyDoCho || POS_FALLBACK;
     } else if (data.lyDoCho) {
       cancelReason.value = data.lyDoCho;
+    } else if (data.payosStatus === 'EXPIRED') {
+      // EXPIRED không có lý do từ BE: thông báo QR hết hạn, không ghi "Bạn đã hủy"
+      cancelReason.value = 'QR thanh toán đã hết hạn. Bạn có thể quay lại đơn hàng và thanh toán lại.';
     } else {
       cancelReason.value = '';
     }
@@ -158,7 +197,11 @@ const applyStatusData = (data: any) => {
     checkoutUrl.value = '';
     status.value = 'CANCELLED';
     stopPolling();
+    return true;
   }
+
+  // PENDING hoặc trạng thái không nhận diện được: không xử lý
+  return false;
 };
 
 const startPolling = () => {
@@ -166,6 +209,7 @@ const startPolling = () => {
   pollInterval = setInterval(async () => {
     try {
       const res = await getOnlinePaymentStatus(idHoaDon);
+      if (isUnmounted) return;
       if (res.data.code === 200) {
         applyStatusData(res.data.data);
       }
@@ -183,11 +227,15 @@ const stopPolling = () => {
 };
 
 const handlePaid = () => {
+  if (isUnmounted || status.value === 'PAID') return;
+
+  // Guard: nếu đã xác nhận PAID thì không phát thông báo/chuyển trang lần 2
   status.value = 'PAID';
   stopPolling();
+
   message.success('Thanh toán thành công');
   cartStore.clearCart();
-  setTimeout(() => {
+  redirectTimeout = setTimeout(() => {
     router.push(`/shop/orders/${idHoaDon}`);
   }, 1500);
 };
@@ -202,14 +250,28 @@ const handleCancel = async () => {
   try {
     loading.value = true;
     const res = await cancelOnlinePayment(idHoaDon);
+    if (isUnmounted) return;
     if (res.data.code === 200) {
-      status.value = 'CANCELLED';
-      stopPolling();
-      message.info('Đã hủy thanh toán');
+      // code 200 không có nghĩa là hủy thành công - đọc trạng thái thực tế từ data
+      const data = res.data.data;
+      if (data) {
+        // Áp dụng trạng thái qua hàm có sẵn - xử lý cả PAID, CANCELLED, EXPIRED
+        const handled = applyStatusData(data);
+        // Nếu applyStatusData không nhận diện (PENDING hoặc phản hồi không rõ):
+        // không tự gán CANCELLED, chỉ báo chưa xác nhận
+        if (!handled) {
+          message.warning('Chưa xác nhận hủy. Vui lòng kiểm tra lại trạng thái đơn hàng.');
+        }
+      } else {
+        // data rỗng: BE chưa xác nhận rõ, không tự gán CANCELLED
+        message.warning('Chưa xác nhận hủy. Vui lòng kiểm tra lại trạng thái đơn hàng.');
+      }
     } else {
       message.error(res.data.message || 'Lỗi khi hủy');
     }
   } catch (err: any) {
+    if (isUnmounted) return;
+    // Lỗi mạng không được coi là đã hủy
     message.error(err.response?.data?.message || 'Lỗi kết nối khi hủy thanh toán');
   } finally {
     loading.value = false;

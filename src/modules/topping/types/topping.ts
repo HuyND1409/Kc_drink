@@ -43,6 +43,7 @@ export interface LoTopping {
   ngayNhap: string; // YYYY-MM-DDTHH:mm:ss
   tenNhanVien: string;
   trangThai: number;
+  donGiaNhap?: number | null;
 }
 
 export interface LoToppingRequest {
@@ -51,4 +52,5 @@ export interface LoToppingRequest {
   soLuongNhap: number;
   hanSuDung: string; // YYYY-MM-DD
   idNhanVien: number;
+  donGiaNhap?: number | null;
 }

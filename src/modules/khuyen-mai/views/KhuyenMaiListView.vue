@@ -33,7 +33,7 @@
       </div>
 
       <div>
-        <a-button type="primary" size="large" @click="openCreateForm">
+        <a-button v-if="isAdmin" type="primary" size="large" @click="openCreateForm">
           + Thêm khuyến mãi
         </a-button>
       </div>
@@ -78,40 +78,42 @@
         </template>
 
         <template v-if="column.key === 'action'">
-          <a-dropdown :trigger="['click']" placement="bottomRight">
-            <a-button class="more-button" size="small">
-              <MoreOutlined />
-            </a-button>
+          <template v-if="isAdmin">
+            <a-dropdown :trigger="['click']" placement="bottomRight">
+              <a-button class="more-button" size="small">
+                <MoreOutlined />
+              </a-button>
 
-            <template #overlay>
-              <a-menu>
-                <a-menu-item @click="openEditForm(record.idKm)">
-                  <EditOutlined />
-                  Sửa
-                </a-menu-item>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item @click="openEditForm(record.idKm)">
+                    <EditOutlined />
+                    Sửa
+                  </a-menu-item>
 
-                <a-menu-divider />
+                  <a-menu-divider />
 
-                <a-menu-item
-                  v-if="record.trangThai === 1"
-                  danger
-                  @click="confirmToggleLock(record)"
-                >
-                  <LockOutlined />
-                  Ngừng hoạt động
-                </a-menu-item>
+                  <a-menu-item
+                    v-if="record.trangThai === 1"
+                    danger
+                    @click="confirmToggleLock(record)"
+                  >
+                    <LockOutlined />
+                    Ngừng hoạt động
+                  </a-menu-item>
 
-                <a-menu-item
-                  v-else
-                  style="color: #52c41a"
-                  @click="confirmToggleLock(record)"
-                >
-                  <UnlockOutlined />
-                  Mở hoạt động
-                </a-menu-item>
-              </a-menu>
-            </template>
-          </a-dropdown>
+                  <a-menu-item
+                    v-else
+                    style="color: #52c41a"
+                    @click="confirmToggleLock(record)"
+                  >
+                    <UnlockOutlined />
+                    Mở hoạt động
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+          </template>
         </template>
       </template>
     </a-table>
@@ -138,6 +140,11 @@ import dayjs from 'dayjs';
 import { getDanhSachKhuyenMai, khoaKhuyenMai, moKhoaKhuyenMai } from '../api/khuyenMaiApi';
 import type { KhuyenMai, GetKhuyenMaiParams } from '../types/khuyenMai';
 import KhuyenMaiForm from '../components/KhuyenMaiForm.vue';
+import { useAuthStore } from "@/modules/auth/store/authStore";
+import { computed } from "vue";
+
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 
 const loading = ref(false);
 const dsKhuyenMai = ref<KhuyenMai[]>([]);
@@ -155,14 +162,19 @@ const pagination = reactive({
   showTotal: (total: number) => `Tổng cộng ${total} khuyến mãi`,
 });
 
-const columns = [
-  { title: "ID", key: "idKm", width: 80 },
-  { title: "Tên chương trình", key: "tenKm", width: 250 },
-  { title: "Giá trị giảm", key: "giaTriGiam", width: 150 },
-  { title: "Thời gian", key: "thoiGian", width: 200 },
-  { title: "Trạng thái", key: "trangThaiHienThi", width: 150 },
-  { title: "Thao tác", key: "action", width: 90, align: "center" as const },
-];
+const columns = computed(() => {
+  const base: any[] = [
+    { title: "ID", key: "idKm", width: 80 },
+    { title: "Tên chương trình", key: "tenKm", width: 250 },
+    { title: "Giá trị giảm", key: "giaTriGiam", width: 150 },
+    { title: "Thời gian", key: "thoiGian", width: 200 },
+    { title: "Trạng thái", key: "trangThaiHienThi", width: 150 },
+  ];
+  if (isAdmin.value) {
+    base.push({ title: "Thao tác", key: "action", width: 90, align: "center" as const });
+  }
+  return base;
+});
 
 const formOpen = ref(false);
 const editId = ref<number | null>(null);

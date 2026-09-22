@@ -33,7 +33,8 @@
             <template v-else>
               <h3>Thanh toán đã hủy</h3>
               <p>Bạn đã hủy thanh toán cho đơn hàng này.</p>
-              <p v-if="redirectCount > 0" class="redirect-text">Tự động quay lại cửa hàng sau {{ redirectCount }} giây.</p>
+              <p v-if="redirectCount > 0" class="redirect-text">Tự động quay lại cửa hàng sau {{ redirectCount }} giây.
+              </p>
               <button class="brand-btn mt-4" @click="goToShop">Quay lại cửa hàng</button>
             </template>
           </div>
@@ -44,7 +45,8 @@
             <p>Mã đơn hàng: <strong>#{{ idHoaDon }}</strong></p>
             <p>Tổng thanh toán: <strong>{{ formatCurrency(previewResponse?.tongThanhToan || 0) }}</strong></p>
 
-            <p v-if="successRedirectCount > 0" class="redirect-text success-redirect-text">Tự động đóng sau {{ successRedirectCount }} giây</p>
+            <p v-if="successRedirectCount > 0" class="redirect-text success-redirect-text">Tự động đóng sau {{
+              successRedirectCount }} giây</p>
 
             <div class="success-actions mt-4">
               <button class="outline-btn" @click="handleSuccessAction('continue')">Tiếp tục mua hàng</button>
@@ -60,7 +62,7 @@
 
             <div class="qr-container">
               <template v-if="qrCode">
-                
+
                 <!-- Countdown Timer -->
                 <div class="payment-timer-wrapper mt-2 mb-4">
                   <div class="payment-timer-label">Thời gian thanh toán còn lại</div>
@@ -75,8 +77,9 @@
                 </div>
                 <p class="qr-note mt-2">Quét mã bằng ứng dụng ngân hàng để thanh toán</p>
                 <p class="qr-desc mb-1" v-if="description">Nội dung CK: <strong>{{ description }}</strong></p>
-                
-                <p class="qr-expire-note mt-1">Đơn hàng sẽ tự hủy nếu hết thời gian thanh toán.</p>
+
+                <p class="qr-expire-note mt-1">Mã QR sẽ hết hiệu lực khi hết thời gian thanh toán. Bạn có thể tạo mã mới
+                  trong chi tiết đơn hàng.</p>
               </template>
               <template v-else>
                 <div class="qr-fallback">Không thể hiển thị mã QR</div>
@@ -87,7 +90,8 @@
               <!-- <button class="payos-btn outline-btn" @click="openPayOS">
                 Mở trang thanh toán PayOS
               </button> -->
-              <button class="cancel-order-btn outline-btn danger-outline-btn" @click="handleCancelOrder" :disabled="cancelingOrder">
+              <button class="cancel-order-btn outline-btn danger-outline-btn" @click="handleCancelOrder"
+                :disabled="cancelingOrder">
                 {{ cancelingOrder ? 'Đang hủy...' : 'Hủy đơn hàng' }}
               </button>
             </div>
@@ -117,8 +121,9 @@
                       <span v-if="selectedAddress.macDinh" class="badge default-badge">Mặc định</span>
                     </div>
                     <div class="address-body">
-                      {{ selectedAddress.diaChi }}<br/>
-                      {{ selectedAddress.tenPhuongXa }}, {{ selectedAddress.tenQuanHuyen }}, {{ selectedAddress.tenTinhThanh }}
+                      {{ selectedAddress.diaChi }}<br />
+                      {{ selectedAddress.tenPhuongXa }}, {{ selectedAddress.tenQuanHuyen }}, {{
+                        selectedAddress.tenTinhThanh }}
                     </div>
                   </div>
                   <div class="address-actions-inline mt-4">
@@ -244,12 +249,8 @@
   </a-modal>
 
   <!-- Dia Chi Online Modal -->
-  <DiaChiOnlineModal
-    v-model:open="addressModalOpen"
-    :current-selected-id="selectedAddressId"
-    @select-address="onAddressSelectedFromModal"
-    @addresses-updated="onAddressesUpdatedFromModal"
-  />
+  <DiaChiOnlineModal v-model:open="addressModalOpen" :current-selected-id="selectedAddressId"
+    @select-address="onAddressSelectedFromModal" @addresses-updated="onAddressesUpdatedFromModal" />
 </template>
 
 <script setup lang="ts">
@@ -276,7 +277,8 @@ import type {
   VoucherOnline,
   CheckoutPreviewResponse,
   CheckoutPreviewRequest,
-  TaoDonHangOnlineRequest
+  TaoDonHangOnlineRequest,
+  TrangThaiThanhToanOnlineResponse
 } from '@/modules/ban-hang-online/types/banHangOnline';
 
 const props = defineProps<{
@@ -350,6 +352,10 @@ const paymentStatus = ref<'PENDING' | 'PAID' | 'CANCELLED'>('PENDING');
 const paymentLoading = ref(false);
 const paymentError = ref('');
 let pollInterval: any = null;
+// Phiên modal – tăng mỗi khi resetFlow() hoặc unmount; dùng để vô hiệu hóa callback cũ
+let modalSession = 0;
+// Bảo vệ handlePaid khỏi chạy nhiều lần trong một phiên
+let paidHandled = false;
 
 const payosExpiresAt = ref<string | null>(null);
 const remainingSeconds = ref(0);
@@ -444,7 +450,7 @@ watch(() => props.open, (newVal) => {
       description.value = props.resumePaymentData.description || '';
       paymentStatus.value = 'PENDING';
       paymentLoading.value = false;
-      
+
       payosExpiresAt.value = props.resumePaymentData.payosExpiresAt || null;
       if (payosExpiresAt.value) {
         startCountdown();
@@ -454,9 +460,9 @@ watch(() => props.open, (newVal) => {
             payosExpiresAt.value = res.data.data.payosExpiresAt;
             startCountdown();
           }
-        }).catch(() => {});
+        }).catch(() => { });
       }
-      
+
       startPolling();
     } else {
       resetFlow();
@@ -473,6 +479,9 @@ watch(() => props.open, (newVal) => {
 const resetFlow = () => {
   clearRedirectTimer();
   clearSuccessRedirectTimer();
+  // Vô hiệu hóa mọi callback đang bay – tăng phiên trước khi xóa state
+  modalSession++;
+  paidHandled = false;
   cancelledByCurrentAction.value = false;
   selectedAddressId.value = null;
   selectedVoucherId.value = null;
@@ -664,7 +673,7 @@ const initPayment = async () => {
       if (res.data.data.description) {
         description.value = res.data.data.description;
       }
-      
+
       if (res.data.data.payosExpiresAt) {
         payosExpiresAt.value = res.data.data.payosExpiresAt;
         startCountdown();
@@ -675,7 +684,7 @@ const initPayment = async () => {
           startCountdown();
         }
       }
-      
+
       startPolling();
     } else {
       paymentError.value = res.data.message || 'Không thể tạo link thanh toán';
@@ -700,6 +709,10 @@ const handlePaymentStatusData = (data: any): boolean => {
     return true;
   }
 
+  // Nếu phiên hiện tại đã được xác nhận PAID, bỏ qua mọi phản hồi đến muộn
+  // (CANCELLED/EXPIRED có thể đến sau khi poll đã set PAID)
+  if (paymentStatus.value === 'PAID') return true;
+
   const isCancelled =
     data.trangThaiDonHang === 'DA_HUY' ||
     data.payosStatus === 'CANCELLED' ||
@@ -713,7 +726,6 @@ const handlePaymentStatusData = (data: any): boolean => {
     const POS_FALLBACK =
       'Phiên QR đã được hủy vì nguyên liệu còn lại được ưu tiên cho khách đang thanh toán tại quầy.' +
       ' Đơn vẫn nằm trong danh sách chờ; bạn có thể thử thanh toán lại khi còn hàng.';
-    const DEFAULT_FALLBACK = 'Phiên thanh toán đã bị hủy hoặc hết hạn.';
 
     if (data.maLyDoCho === 'POS_UU_TIEN') {
       cancelReason.value = data.lyDoCho || POS_FALLBACK;
@@ -733,11 +745,6 @@ const handlePaymentStatusData = (data: any): boolean => {
     // Phát sự kiện cập nhật một lần
     notifyDataChanged('ONLINE_ORDER_UPDATED', { idHoaDon: idHoaDon.value });
 
-    // Nếu POS hủy: không chạy bộ đếm quay về cửa hàng
-    if (data.maLyDoCho !== 'POS_UU_TIEN' && !cancelReason.value) {
-      // Khách chủ động hủy được xử lý qua handleCancelOrder, không chạy đếm ở đây
-    }
-
     return true;
   }
 
@@ -746,10 +753,13 @@ const handlePaymentStatusData = (data: any): boolean => {
 
 const startPolling = () => {
   if (pollInterval) clearInterval(pollInterval);
+  // Ghi nhận phiên tại thời điểm bắt đầu poll
+  const sessionAtStart = modalSession;
   pollInterval = setInterval(async () => {
-    if (!idHoaDon.value) return;
+    if (modalSession !== sessionAtStart || !idHoaDon.value) return;
     try {
       const res = await getOnlinePaymentStatus(idHoaDon.value);
+      if (modalSession !== sessionAtStart) return;
       if (res.data.code === 200) {
         handlePaymentStatusData(res.data.data);
       }
@@ -767,6 +777,9 @@ const stopPolling = () => {
 };
 
 const handlePaid = () => {
+  // Guard: thông báo, clearCart và chuyển trang chỉ thực hiện một lần mỗi phiên
+  if (paidHandled) return;
+  paidHandled = true;
   paymentStatus.value = 'PAID';
   stopPolling();
   stopCountdown();
@@ -782,27 +795,57 @@ const openPayOS = () => {
 
 const handleCancelPayment = async () => {
   if (!idHoaDon.value) return;
+
+  // Nếu đã xác nhận PAID → bỏ qua yêu cầu hủy
+  if (paymentStatus.value === 'PAID') return;
+
+  // Ghi nhận số phiên tại thời điểm gửi request;
+  // phân biệt đóng/mở lại cùng hóa đơn và component unmount
+  const capturedSession = modalSession;
+
   try {
     paymentLoading.value = true;
     const res = await cancelOnlinePayment(idHoaDon.value);
+
+    // Phiên đã thay đổi (modal đóng, đổi hóa đơn, unmount) → bỏ qua
+    if (modalSession !== capturedSession) return;
+
     if (res.data.code === 200) {
-      paymentStatus.value = 'CANCELLED';
-      stopPolling();
-      message.info('Đã hủy thanh toán');
+      // BE trả dữ liệu trạng thái thực tế – không tự gán CANCELLED
+      const data = res.data.data as TrangThaiThanhToanOnlineResponse | null | undefined;
+
+      if (data && typeof data === 'object') {
+        const handled = handlePaymentStatusData(data);
+        if (!handled) {
+          // Trạng thái vẫn PENDING hoặc không rõ → không tự đóng QR, giữ polling
+          message.warning('Không thể xác nhận trạng thái hủy. Vui lòng chờ hoặc thử lại.');
+        }
+        // Nếu handled === true: handlePaymentStatusData đã gọi handlePaid() hoặc set CANCELLED
+      } else {
+        // data rỗng → không đủ thông tin, không tự gán CANCELLED
+        message.warning('Hệ thống chưa xác nhận được trạng thái. Vui lòng chờ thêm.');
+      }
     } else {
-      message.error(res.data.message || 'Lỗi khi hủy');
+      message.error(res.data.message || 'Lỗi khi hủy thanh toán');
     }
   } catch (err: any) {
-    message.error(err.response?.data?.message || 'Lỗi kết nối khi hủy thanh toán');
+    // Lỗi mạng → không tự gán CANCELLED, giữ polling
+    if (modalSession === capturedSession) {
+      message.error(err.response?.data?.message || 'Lỗi kết nối khi hủy thanh toán. Vui lòng kiểm tra lại.');
+    }
   } finally {
-    paymentLoading.value = false;
+    if (modalSession === capturedSession) {
+      paymentLoading.value = false;
+    }
   }
 };
 
 const checkCurrentStatusImmediate = async () => {
   if (!idHoaDon.value) return;
+  const capturedSession = modalSession;
   try {
     const res = await getOnlinePaymentStatus(idHoaDon.value);
+    if (modalSession !== capturedSession) return;
     if (res.data.code === 200) {
       handlePaymentStatusData(res.data.data);
     }
@@ -896,7 +939,10 @@ const formatCurrency = (val: number) => {
 };
 
 onUnmounted(() => {
+  // Tăng phiên để vô hiệu hóa mọi callback đang chờ
+  modalSession++;
   stopPolling();
+  stopCountdown();
   clearRedirectTimer();
   clearSuccessRedirectTimer();
 });
@@ -1327,8 +1373,8 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
-.payment-actions > button,
-.payment-actions > a {
+.payment-actions>button,
+.payment-actions>a {
   width: 100%;
 }
 
@@ -1490,9 +1536,17 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.6; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 768px) {

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <a-drawer
     :open="props.open"
     width="860"
@@ -42,10 +42,11 @@
             style="width:160px;"
             :precision="3"
             placeholder="VD: 5000"
+            :disabled="!isAdmin"
           />
           <span style="font-weight:600;">{{ props.btp.donViTinh }}</span>
           <a-button
-            v-if="congThuc.length > 0 && standardOutput !== originalStandardOutput"
+            v-if="isAdmin && congThuc.length > 0 && standardOutput !== originalStandardOutput"
             type="primary"
             size="small"
             :loading="savingStandard"
@@ -76,7 +77,7 @@
               (cho {{ formatNumber(standardOutput) }} {{ props.btp.donViTinh }})
             </span>
           </span>
-          <a-button type="primary" size="small" @click="openAddNL">
+          <a-button v-if="isAdmin" type="primary" size="small" @click="openAddNL">
             + Thêm nguyên liệu
           </a-button>
         </div>
@@ -105,7 +106,7 @@
               <a-tag>{{ record.donViNguyenLieu }}</a-tag>
             </template>
             <template v-if="column.key === 'action'">
-              <div style="display:flex;gap:4px;justify-content:center;">
+              <div v-if="isAdmin" style="display:flex;gap:4px;justify-content:center;">
                 <a-button size="small" type="link" @click="openEdit(record)">Sửa</a-button>
                 <a-divider type="vertical" style="margin:0;" />
                 <a-popconfirm
@@ -190,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { message, Modal } from "ant-design-vue";
 import type { AxiosError } from "axios";
 import type {
@@ -199,6 +200,7 @@ import type {
   CongThucBanThanhPhamRequest,
   NguyenLieuOption,
 } from "../types/banThanhPham";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 import {
   getCongThucBanThanhPham,
   createCongThucBanThanhPham,
@@ -217,6 +219,12 @@ const emit = defineEmits<{
 }>();
 
 // ============================================================
+// Auth
+// ============================================================
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
+
+// ============================================================
 // Helpers
 // ============================================================
 const formatNumber = (v: number) =>
@@ -233,17 +241,22 @@ const standardOutput = ref<number | null>(null);
 const originalStandardOutput = ref<number | null>(null);
 const savingStandard = ref(false);
 
-const columns = [
-  { title: "Nguyên liệu", key: "tenNguyenLieu", ellipsis: true },
-  {
-    title: "Định lượng",
-    dataIndex: "soLuongNguyenLieu",
-    width: 130,
-    align: "center" as const,
-  },
-  { title: "Đơn vị", key: "donViNguyenLieu", width: 90, align: "center" as const },
-  { title: "Thao tác", key: "action", width: 130, align: "center" as const },
-];
+const columns = computed(() => {
+  const base = [
+    { title: "Nguyên liệu", key: "tenNguyenLieu", ellipsis: true },
+    {
+      title: "Định lượng",
+      dataIndex: "soLuongNguyenLieu",
+      width: 130,
+      align: "center" as const,
+    },
+    { title: "Đơn vị", key: "donViNguyenLieu", width: 90, align: "center" as const },
+  ];
+  if (isAdmin.value) {
+    base.push({ title: "Thao tác", key: "action", width: 130, align: "center" as const });
+  }
+  return base;
+});
 
 // ============================================================
 // Watch open

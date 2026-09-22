@@ -296,7 +296,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed } from "vue";
+import { onMounted, onUnmounted, reactive, ref, computed } from "vue";
 import { message } from "ant-design-vue";
 import VChart from "vue-echarts";
 import { use } from "echarts/core";
@@ -319,6 +319,7 @@ use([
 import axios from "axios";
 import { useAuthStore } from "@/modules/auth/store/authStore";
 import { getDashboard } from "../api/dashboardApi";
+import { onDataChanged } from "@/utils/appSync";
 import type { DashboardData } from "../api/dashboardApi";
 
 const auth = useAuthStore();
@@ -469,30 +470,117 @@ const formatCompactCurrency = (value: number) => {
   return value + ' ₫';
 };
 
-const loadDashboard = async () => {
-  loading.value = true;
+let listSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
+
+const loadDashboard = (isBackground = false): Promise<void> => {
+  if (isUnmounted) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+const executeFetch = async (isBackground: boolean) => {
+  const sessionForThisRun = listSession;
+
+  if (!isBackground) loading.value = true;
   try {
     const response = await getDashboard();
+    if (sessionForThisRun !== listSession || isUnmounted) return;
     const result = response.data.data;
     if (result) {
       Object.assign(data, result);
     }
-  } catch (error: unknown) {
-    console.error("Lỗi tải dashboard:", error);
-    if (axios.isAxiosError(error)) {
-      message.error(
-        error.response?.data?.message || "Không thể tải dữ liệu tổng quan"
-      );
-    } else {
-      message.error("Không thể tải dữ liệu tổng quan");
+  } catch (error: any) {
+    if (sessionForThisRun === listSession && !isUnmounted && !isBackground) {
+      console.error("Lỗi tải dashboard:", error);
+      if (axios.isAxiosError(error)) {
+        message.error(
+          error.response?.data?.message || "Không thể tải dữ liệu tổng quan"
+        );
+      } else {
+        message.error("Không thể tải dữ liệu tổng quan");
+      }
     }
   } finally {
-    loading.value = false;
+    if (sessionForThisRun === listSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loading.value = false;
+      }
+    }
   }
+};
+
+const consumePending = () => {
+  if (isUnmounted) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      loadDashboard(true);
+    }
+  }, 300);
 };
 
 onMounted(() => {
   loadDashboard();
+
+  unsubSync = onDataChanged((type) => {
+    if (['HOA_DON_UPDATED', 'ONLINE_ORDER_UPDATED', 'GHN_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 15000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  listSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
 });
 </script>
 

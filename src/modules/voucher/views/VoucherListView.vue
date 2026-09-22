@@ -11,9 +11,9 @@
 
       <div class="toolbar-left">
         <a-input-search v-model:value="keyword" placeholder="Nhập mã hoặc tên voucher..." allow-clear
-          style="width:320px" @search="onSearch" />
+          style="width:320px" @search="onSearch()" />
 
-        <a-select v-model:value="trangThai" placeholder="Trạng thái" allow-clear style="width:170px" @change="loadData">
+        <a-select v-model:value="trangThai" placeholder="Trạng thái" allow-clear style="width:170px" @change="onSearch()">
           <a-select-option :value="1">Đang mở</a-select-option>
           <a-select-option :value="0">Đã khóa</a-select-option>
         </a-select>
@@ -25,11 +25,11 @@
 
       <div style="display: flex; gap: 12px;">
         <div style="display: flex; gap: 12px;">
-        <a-button style="background: #52c41a; color: white" size="large" @click="handleTriggerBirthday">
+        <a-button v-if="isAdmin" style="background: #52c41a; color: white" size="large" @click="handleTriggerBirthday">
           🎂 Quét Sinh Nhật
         </a-button>
 
-        <a-button type="primary" size="large" @click="onAdd">
+        <a-button v-if="isAdmin" type="primary" size="large" @click="onAdd">
           + Thêm Voucher
         </a-button>
       </div>
@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { message } from "ant-design-vue";
 import type { AxiosError } from "axios";
 import VoucherTable from "../components/VoucherTable.vue";
@@ -68,6 +68,12 @@ import type {
   Voucher,
   VoucherRequest,
 } from "../types/voucher";
+import { onDataChanged } from "@/utils/appSync";
+import { useAuthStore } from "@/modules/auth/store/authStore";
+import { computed } from "vue";
+
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === "ADMIN");
 
 const dsVoucher = ref<Voucher[]>([]);
 const loading = ref(false);
@@ -96,8 +102,34 @@ const handleCloseModal = () => {
   openModal.value = false;
 };
 
-const loadData = async () => {
-  loading.value = true;
+let listSession = 0;
+let fetchTimeout: ReturnType<typeof setTimeout> | null = null;
+let isFetching = false;
+let pendingRequests: Array<{ isBackground: boolean, resolve: () => void }> = [];
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+let unsubSync: (() => void) | null = null;
+let isUnmounted = false;
+
+const loadData = (isBackground = false): Promise<void> => {
+  if (isUnmounted) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    if (isFetching) {
+      pendingRequests.push({ isBackground, resolve });
+      return;
+    }
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      resolve();
+      consumePending();
+    });
+  });
+};
+
+const executeFetch = async (isBackground: boolean) => {
+  const sessionForThisRun = listSession;
+
+  if (!isBackground) loading.value = true;
   try {
     const response = await getVoucher(
       keyword.value,
@@ -105,11 +137,56 @@ const loadData = async () => {
       currentPage.value - 1,
       pageSize.value
     );
+    if (sessionForThisRun !== listSession || isUnmounted) return;
     dsVoucher.value = response.data.data.content;
     total.value = response.data.data.totalElements;
+  } catch (error: any) {
+    if (sessionForThisRun === listSession && !isUnmounted && !isBackground) {
+      console.error(error);
+    }
   } finally {
-    loading.value = false;
+    if (sessionForThisRun === listSession && !isUnmounted) {
+      const nextIsForeground = pendingRequests.some(r => !r.isBackground);
+      if (!isBackground && !nextIsForeground) {
+        loading.value = false;
+      }
+    }
   }
+};
+
+const consumePending = () => {
+  if (isUnmounted) {
+    pendingRequests.forEach(req => req.resolve());
+    pendingRequests = [];
+    isFetching = false;
+    return;
+  }
+  if (pendingRequests.length > 0) {
+    const isBackground = pendingRequests.every(req => req.isBackground);
+    if (isBackground && document.visibilityState !== 'visible') {
+      isFetching = false;
+      return;
+    }
+    const requestsToProcess = pendingRequests;
+    pendingRequests = [];
+    isFetching = true;
+    executeFetch(isBackground).then(() => {
+      requestsToProcess.forEach(req => req.resolve());
+      consumePending();
+    });
+  } else {
+    isFetching = false;
+  }
+};
+
+const triggerRefresh = () => {
+  if (isUnmounted) return;
+  if (fetchTimeout) clearTimeout(fetchTimeout);
+  fetchTimeout = setTimeout(() => {
+    if (document.visibilityState === 'visible') {
+      loadData(true);
+    }
+  }, 300);
 };
 
 const saveVoucher = async (data: VoucherRequest) => {
@@ -124,6 +201,7 @@ const saveVoucher = async (data: VoucherRequest) => {
 
     editing.value = undefined;
     openModal.value = false;
+    listSession++;
     await loadData();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
@@ -132,17 +210,20 @@ const saveVoucher = async (data: VoucherRequest) => {
 };
 
 const onSearch = () => {
+  listSession++;
   currentPage.value = 1;
   loadData();
 };
 
 const onPageChange = (page: number, size: number) => {
+  listSession++;
   currentPage.value = page;
   pageSize.value = size;
   loadData();
 };
 
 const resetFilter = () => {
+  listSession++;
   keyword.value = "";
   trangThai.value = undefined;
   currentPage.value = 1;
@@ -153,6 +234,7 @@ const onLock = async (id: number) => {
   try {
     await lockVoucher(id);
     message.success("Đã khóa mã giảm giá");
+    listSession++;
     loadData();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
@@ -164,6 +246,7 @@ const onUnlock = async (id: number) => {
   try {
     await unlockVoucher(id);
     message.success("Đã mở khóa mã giảm giá");
+    listSession++;
     loadData();
   } catch (error) {
     const err = error as AxiosError<{ message: string }>;
@@ -173,12 +256,31 @@ const onUnlock = async (id: number) => {
 
 onMounted(() => {
   loadData();
+
+  unsubSync = onDataChanged((type) => {
+    if (['VOUCHER_UPDATED', 'APP_REVALIDATE'].includes(type)) {
+      triggerRefresh();
+    }
+  });
+
+  pollingInterval = setInterval(() => {
+    triggerRefresh();
+  }, 30000);
+});
+
+onUnmounted(() => {
+  isUnmounted = true;
+  listSession++;
+  if (unsubSync) unsubSync();
+  if (pollingInterval) clearInterval(pollingInterval);
+  if (fetchTimeout) clearTimeout(fetchTimeout);
 });
 const handleTriggerBirthday = async () => {
   try {
     loading.value = true;
     await triggerBirthday();
     message.success("Quét và gửi thư sinh nhật thành công!");
+    listSession++;
     await loadData(); // Tải lại bảng để thấy mã mới
   } catch (error) {
     message.error("Có lỗi xảy ra khi quét sinh nhật!");

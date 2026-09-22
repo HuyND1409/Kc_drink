@@ -6,7 +6,7 @@
         <span>{{ khachHang?.sdt }}</span>
       </div>
 
-      <a-button type="primary" @click="onCreate">
+      <a-button v-if="canCreateAddress" type="primary" @click="onCreate">
         + Thêm địa chỉ
       </a-button>
     </div>
@@ -25,8 +25,10 @@
 
 import {
   ref,
-  watch
+  watch,
+  computed
 } from "vue";
+import { useAuthStore } from "@/modules/auth/store/authStore";
 
 import { message } from "ant-design-vue";
 
@@ -69,16 +71,17 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-
   (e: "update:open", value: boolean): void;
-
   (
     e: "update-default",
     idKhachHang: number,
     diaChi: string
   ): void;
-
 }>();
+
+const authStore = useAuthStore();
+const canCreateAddress = computed(() => authStore.user?.role === "ADMIN" || authStore.user?.role === "STAFF");
+
 const loading = ref(false);
 
 const openForm = ref(false);
