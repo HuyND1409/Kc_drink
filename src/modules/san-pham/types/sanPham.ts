@@ -39,12 +39,16 @@ export interface Size {
   idSize: number;
   tenSize: string;
   phuThu: number;
+  tyLeTangGia: number;
+  tyLeTangNguyenLieu?: number;
   thuTu: number;
 }
 
 export interface SizeRequest {
   tenSize: string;
   phuThu: number;
+  tyLeTangGia: number;
+  tyLeTangNguyenLieu: number;
   thuTu: number;
 }
 
@@ -58,6 +62,8 @@ export interface SanPhamSize {
   idSize: number;
   tenSize: string;
   phuThu: number;
+  tuDongTinh: boolean;
+  tuDongTinhNguyenLieu?: boolean;
   thuTu: number;
 }
 
@@ -65,6 +71,7 @@ export interface SanPhamSize {
 export interface ProductSizeSelection {
   idSize: number;
   phuThu: number;
+  tuDongTinh: boolean;
 }
 
 // ============================================================

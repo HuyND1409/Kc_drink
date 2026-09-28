@@ -1,7 +1,9 @@
 <template>
   <a-table :columns="columns" :data-source="data" :loading="loading" :pagination="false" rowKey="idVoucher" bordered>
-    <template #bodyCell="{ column, record }">
-
+    <template #bodyCell="{ column, record, index }">
+      <template v-if="column.key === 'stt'">
+        {{ index + 1 }}
+      </template>
       <template v-if="column.key === 'mucGiam'">
         <span v-if="!record.giaTriGiam">
           <a-tag color="default">Chưa thiết lập</a-tag>
@@ -116,6 +118,12 @@ const formatDate = (dateString?: string | null) => {
 // Cấu hình các cột của bảng
 const columns = computed(() => {
   const base: any[] = [
+    {
+      title: "STT",
+      key: "stt",
+      width: 70,
+      align: "center" as const,
+    },
     { title: "Mã", dataIndex: "maVoucher", width: 120 },
     { title: "Tên chương trình", dataIndex: "tenVoucher", width: 200 },
     { title: "Mức giảm", key: "mucGiam", width: 120, align: "center" },

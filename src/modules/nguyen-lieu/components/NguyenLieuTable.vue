@@ -47,7 +47,7 @@
               <template #icon>
                 <DatabaseOutlined />
               </template>
-              Xem kho
+              Xem chi tiết
             </a-button>
           </a-tooltip>
 

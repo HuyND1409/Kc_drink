@@ -1,12 +1,6 @@
 <template>
-  <a-drawer
-    :open="open"
-    title="Chi tiết hóa đơn"
-    width="760"
-    @close="onClose"
-    :destroyOnClose="true"
-    class="hoa-don-detail-drawer"
-  >
+  <a-drawer :open="open" title="Chi tiết hóa đơn" width="760" @close="onClose" :destroyOnClose="true"
+    class="hoa-don-detail-drawer">
     <a-spin :spinning="loading" wrapperClassName="drawer-spin-wrapper">
       <div v-if="hoaDon" class="drawer-content">
         <!-- HEADER INFO -->
@@ -44,22 +38,12 @@
           <div class="section-title">
             <span>Thông tin giao hàng</span>
             <div class="shipping-actions">
-              <a-button
-                v-if="vanDon.maVanDonGhn && nextGhnStep"
-                type="default"
-                size="small"
-                :loading="loadingGiaLap"
-                @click="onGiaLapGhn"
-              >
+              <a-button v-if="vanDon.maVanDonGhn && nextGhnStep" type="default" size="small" :loading="loadingGiaLap"
+                @click="onGiaLapGhn">
                 Cập nhật: {{ nextGhnStep.label }}
               </a-button>
-              <a-button
-                v-if="vanDon.maVanDonGhn"
-                type="primary"
-                size="small"
-                :loading="loadingGhn"
-                @click="onRefreshGhn"
-              >
+              <a-button v-if="vanDon.maVanDonGhn" type="primary" size="small" :loading="loadingGhn"
+                @click="onRefreshGhn">
                 Làm mới trạng thái GHN
               </a-button>
             </div>
@@ -94,10 +78,7 @@
         <!-- DANH SÁCH MÓN -->
         <h3 class="section-heading">Danh sách món</h3>
         <div class="invoice-items-section">
-          <a-empty
-            v-if="!hoaDon.chiTiet || hoaDon.chiTiet.length === 0"
-            description="Hóa đơn chưa có món"
-          />
+          <a-empty v-if="!hoaDon.chiTiet || hoaDon.chiTiet.length === 0" description="Hóa đơn chưa có món" />
           <div v-else class="product-list">
             <div v-for="(item, index) in hoaDon.chiTiet" :key="index" class="product-item">
               <div class="product-info">
@@ -106,7 +87,18 @@
                   <span class="name">{{ item.tenSanPham }}</span>
                 </div>
                 <div class="product-meta text-secondary">
-                  Size: {{ item.tenSize }} | Đường: {{ formatPhanTram(item.mucDuong) }} | Đá: {{ formatPhanTram(item.mucDa) }}
+                  Size: {{ item.tenSize }} | Đường: {{ formatPhanTram(item.mucDuong) }} | Đá: {{
+                    formatPhanTram(item.mucDa) }}
+                </div>
+                <div v-if="item.tenKhuyenMai && (item.tienGiamKhuyenMai ?? 0) > 0" class="product-promotion">
+                  <a-tag color="orange">CTKM</a-tag>
+                  <span>
+                    {{ item.tenKhuyenMai }}
+                  </span>
+
+                  <span class="text-danger">
+                    (- {{ formatCurrency(item.tienGiamKhuyenMai) }})
+                  </span>
                 </div>
                 <div class="product-topping" v-if="item.toppingList && item.toppingList.length > 0">
                   <div v-for="(tp, tIdx) in item.toppingList" :key="tIdx" class="topping-item">
@@ -130,7 +122,8 @@
             <span>{{ formatCurrency(hoaDon.tongTien) }}</span>
           </div>
           <div class="summary-row" v-if="(hoaDon.giamGia ?? 0) > 0">
-            <span>Giảm giá (Voucher <span v-if="hoaDon.maVoucher" class="voucher-code">{{ hoaDon.maVoucher }}</span>):</span>
+            <span>Giảm giá (Voucher <span v-if="hoaDon.maVoucher" class="voucher-code">{{ hoaDon.maVoucher
+                }}</span>):</span>
             <span class="text-danger">- {{ formatCurrency(hoaDon.giamGia) }}</span>
           </div>
           <div class="summary-row" v-if="(hoaDon.phiVanChuyen ?? 0) > 0">
@@ -444,29 +437,35 @@ const translateGhnStatus = (status?: string | null) => {
   flex-shrink: 0;
   margin-bottom: 8px;
 }
+
 .header-row {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
 .header-row h2 {
   margin: 0;
   font-size: 20px;
 }
+
 .status-tag {
   font-size: 13px;
   padding: 0 6px;
 }
+
 .text-secondary {
   color: #8c8c8c;
   font-size: 13px;
   margin-top: 4px;
   margin-bottom: 0;
 }
+
 .mt-4 {
   margin-top: 12px;
   flex-shrink: 0;
 }
+
 .section-title {
   display: flex;
   justify-content: space-between;
@@ -475,11 +474,13 @@ const translateGhnStatus = (status?: string | null) => {
   font-weight: 600;
   font-size: 15px;
 }
+
 .shipping-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
+
 .section-heading {
   font-size: 15px;
   font-weight: 600;
@@ -500,6 +501,7 @@ const translateGhnStatus = (status?: string | null) => {
   flex-direction: column;
   gap: 8px;
 }
+
 .product-item {
   display: flex;
   justify-content: space-between;
@@ -508,31 +510,38 @@ const translateGhnStatus = (status?: string | null) => {
   border-radius: 6px;
   border: 1px solid #f0f0f0;
 }
+
 .product-name {
   font-weight: 600;
   font-size: 14px;
 }
+
 .qty {
   color: #1677ff;
   margin-right: 6px;
 }
+
 .product-meta {
   margin-top: 2px;
   font-size: 12px;
 }
+
 .product-topping {
   margin-top: 4px;
   padding-left: 8px;
   border-left: 2px solid #d9d9d9;
 }
+
 .topping-item {
   font-size: 12px;
   color: #595959;
 }
+
 .product-price {
   font-weight: 600;
   font-size: 14px;
 }
+
 .summary-section {
   flex-shrink: 0;
   display: flex;
@@ -543,11 +552,13 @@ const translateGhnStatus = (status?: string | null) => {
   border-radius: 6px;
   border: 1px solid #e8e8e8;
 }
+
 .summary-row {
   display: flex;
   justify-content: space-between;
   font-size: 13px;
 }
+
 .summary-row.total {
   margin-top: 6px;
   padding-top: 6px;
@@ -555,13 +566,16 @@ const translateGhnStatus = (status?: string | null) => {
   font-weight: bold;
   font-size: 15px;
 }
+
 .total-amount {
   color: #ff4d4f;
   font-size: 16px;
 }
+
 .text-danger {
   color: #ff4d4f;
 }
+
 .voucher-code {
   background: #ffe58f;
   padding: 0 4px;
@@ -579,10 +593,12 @@ const translateGhnStatus = (status?: string | null) => {
 .compact-desc {
   flex-shrink: 0;
 }
+
 :deep(.compact-desc .ant-descriptions-title) {
   margin-bottom: 8px;
   font-size: 15px;
 }
+
 :deep(.compact-desc .ant-descriptions-item-label),
 :deep(.compact-desc .ant-descriptions-item-content) {
   padding: 6px 12px !important;
@@ -596,12 +612,14 @@ const translateGhnStatus = (status?: string | null) => {
   overflow-y: auto;
   overflow-x: hidden;
 }
+
 :deep(.drawer-spin-wrapper) {
   height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
+
 :deep(.ant-spin-container) {
   height: 100%;
   display: flex;
@@ -613,9 +631,11 @@ const translateGhnStatus = (status?: string | null) => {
   :deep(.ant-drawer-body) {
     overflow-y: auto;
   }
+
   .drawer-content {
     overflow: visible;
   }
+
   .invoice-items-section {
     overflow: visible;
   }

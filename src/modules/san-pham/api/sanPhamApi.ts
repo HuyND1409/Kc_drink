@@ -119,9 +119,10 @@ export const getSanPhamSizeByProduct = (idSanPham: number) => {
 export const createSanPhamSize = async (
   idSanPham: number,
   idSize: number,
-  phuThu: number
+  phuThu: number,
+  tuDongTinh?: boolean
 ) => {
-  const res = await api.post("/san-pham-size", { idSanPham, idSize, phuThu });
+  const res = await api.post("/san-pham-size", { idSanPham, idSize, phuThu, tuDongTinh });
   notifyDataChanged("PRODUCT_UPDATED");
   return res;
 };
@@ -136,9 +137,26 @@ export const updateSanPhamSize = async (
   id: number,
   idSanPham: number,
   idSize: number,
-  phuThu: number
+  phuThu: number,
+  tuDongTinh?: boolean
 ) => {
-  const res = await api.put(`/san-pham-size/${id}`, { idSanPham, idSize, phuThu });
+  const res = await api.put(`/san-pham-size/${id}`, { idSanPham, idSize, phuThu, tuDongTinh });
+  notifyDataChanged("PRODUCT_UPDATED");
+  return res;
+};
+
+// Cap nhat chi truong tuDongTinhNguyenLieu (khong gui phuThu/tuDongTinh gia)
+export const updateSanPhamSizeNguyenLieu = async (
+  id: number,
+  idSanPham: number,
+  idSize: number,
+  tuDongTinhNguyenLieu: boolean
+) => {
+  const res = await api.put(`/san-pham-size/${id}`, {
+    idSanPham,
+    idSize,
+    tuDongTinhNguyenLieu,
+  });
   notifyDataChanged("PRODUCT_UPDATED");
   return res;
 };

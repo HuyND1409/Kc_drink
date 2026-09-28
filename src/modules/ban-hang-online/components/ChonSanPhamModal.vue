@@ -1,14 +1,7 @@
 <template>
-  <a-modal
-    :open="open"
-    @cancel="handleCancel"
-    :footer="null"
-    :width="1080"
-    centered
-    class="chon-san-pham-modal brand-modal"
-    :bodyStyle="{ padding: 0, height: 'min(760px, 88vh)', overflow: 'hidden' }"
-    :closable="false"
-  >
+  <a-modal :open="open" @cancel="handleCancel" :footer="null" :width="1080" centered
+    class="chon-san-pham-modal brand-modal" :bodyStyle="{ padding: 0, height: 'min(760px, 88vh)', overflow: 'hidden' }"
+    :closable="false">
     <div v-if="productData" class="modal-content-wrap">
       <!-- Header Close Button -->
       <button class="close-btn" @click="handleCancel">✕</button>
@@ -16,13 +9,8 @@
       <div class="modal-layout">
         <!-- LEFT: Image -->
         <div class="modal-left">
-          <img
-            v-if="productData.sanPham.hinhAnh && !imageError"
-            :src="getSanPhamImageUrl(productData.sanPham.hinhAnh)"
-            :alt="productData.sanPham.tenSanPham"
-            @error="imageError = true"
-            class="modal-main-img"
-          />
+          <img v-if="productData.sanPham.hinhAnh && !imageError" :src="getSanPhamImageUrl(productData.sanPham.hinhAnh)"
+            :alt="productData.sanPham.tenSanPham" @error="imageError = true" class="modal-main-img" />
           <div v-else class="modal-img-fallback">🧋</div>
         </div>
 
@@ -31,11 +19,13 @@
           <div class="modal-header-info">
             <h2 class="product-title">{{ productData.sanPham.tenSanPham }}</h2>
             <p class="product-desc">{{ productData.sanPham.moTa || "Thức uống tuyệt hảo từ KC Drink" }}</p>
-            
+
             <div class="price-section">
-              <span class="current-price">{{ formatCurrency(productData.sanPham.coKhuyenMai ? productData.sanPham.giaSauKhuyenMai : productData.sanPham.gia) }}</span>
-              <span v-if="productData.sanPham.coKhuyenMai" class="old-price">{{ formatCurrency(productData.sanPham.gia) }}</span>
-              <span v-if="productData.sanPham.coKhuyenMai" class="promo-tag">{{ productData.sanPham.tenKhuyenMai }}</span>
+              <span class="current-price">{{ formatCurrency(giaHienThiTheoSize) }}</span>
+              <span v-if="productData.sanPham.coKhuyenMai" class="old-price">{{ formatCurrency(productData.sanPham.gia)
+                }}</span>
+              <span v-if="productData.sanPham.coKhuyenMai" class="promo-tag">{{ productData.sanPham.tenKhuyenMai
+                }}</span>
             </div>
           </div>
 
@@ -47,14 +37,10 @@
                 <span class="required-dot">*</span>
               </div>
               <div class="chip-row">
-                <button
-                  v-for="size in sortedSizes"
-                  :key="size.idSize"
-                  class="chip-btn"
-                  :class="{ active: selectedSizeId === size.idSize }"
-                  @click="selectedSizeId = size.idSize"
-                >
-                  {{ size.tenSize }} <span v-if="size.phuThu > 0" class="chip-price">+{{ formatCurrency(size.phuThu) }}</span>
+                <button v-for="size in sortedSizes" :key="size.idSize" class="chip-btn"
+                  :class="{ active: selectedSizeId === size.idSize }" @click="selectedSizeId = size.idSize">
+                  {{ size.tenSize }} <span v-if="size.phuThu > 0" class="chip-price">+{{ formatCurrency(size.phuThu)
+                    }}</span>
                 </button>
               </div>
             </div>
@@ -64,28 +50,18 @@
               <div class="config-group">
                 <div class="group-header"><span class="group-label">MỨC ĐƯỜNG</span></div>
                 <div class="chip-row small-chips">
-                  <button
-                    v-for="val in [100, 70, 50, 30, 0]"
-                    :key="'sugar'+val"
-                    class="chip-btn"
-                    :class="{ active: sugarLevel === val }"
-                    @click="sugarLevel = val"
-                  >
+                  <button v-for="val in [100, 70, 50, 30, 0]" :key="'sugar' + val" class="chip-btn"
+                    :class="{ active: sugarLevel === val }" @click="sugarLevel = val">
                     {{ val }}%
                   </button>
                 </div>
               </div>
-              
+
               <div class="config-group">
                 <div class="group-header"><span class="group-label">MỨC ĐÁ</span></div>
                 <div class="chip-row small-chips">
-                  <button
-                    v-for="val in [100, 70, 50, 30, 0]"
-                    :key="'ice'+val"
-                    class="chip-btn"
-                    :class="{ active: iceLevel === val }"
-                    @click="iceLevel = val"
-                  >
+                  <button v-for="val in [100, 70, 50, 30, 0]" :key="'ice' + val" class="chip-btn"
+                    :class="{ active: iceLevel === val }" @click="iceLevel = val">
                     {{ val }}%
                   </button>
                 </div>
@@ -98,31 +74,23 @@
                 <span class="group-label">TOPPING TỔNG (CHUNG CHO {{ drinkQty }} LY)</span>
               </div>
               <div class="topping-list">
-                <div
-                  v-for="topping in activeToppings"
-                  :key="topping.idTopping"
-                  class="topping-row"
-                  :class="{ disabled: topping.tongTonKho <= 0 }"
-                >
-                  <label class="topping-label-wrap" @click.prevent="toggleTopping(topping)">
-                    <input 
-                      type="checkbox" 
-                      class="custom-checkbox"
-                      :checked="selectedToppings[topping.idTopping]?.checked"
-                      :disabled="topping.tongTonKho <= 0"
-                    />
+                <div v-for="topping in activeToppings" :key="topping.idTopping" class="topping-row"
+                  :class="{ disabled: topping.tongTonKho <= 0 }">
+                  <label class="topping-label-wrap">
+                    <input type="checkbox" class="custom-checkbox"
+                      :checked="selectedToppings[topping.idTopping]?.checked" :disabled="topping.tongTonKho <= 0"
+                      @change="toggleTopping(topping)" />
                     <div class="topping-info-text">
                       <span class="topping-name">{{ topping.tenTopping }}</span>
                       <span class="topping-price">+{{ formatCurrency(topping.giaTopping) }}</span>
                       <span v-if="topping.tongTonKho <= 0" class="out-of-stock">(Hết hàng)</span>
                     </div>
                   </label>
-                  
-                  <div 
-                    class="qty-control topping-qty"
-                    :class="{ 'is-hidden': !selectedToppings[topping.idTopping]?.checked }"
-                  >
-                    <button class="qty-btn" @click="updateToppingInput(topping.idTopping, -1)" :disabled="selectedToppings[topping.idTopping]!.qty <= 1">-</button>
+
+                  <div class="qty-control topping-qty"
+                    :class="{ 'is-hidden': !selectedToppings[topping.idTopping]?.checked }">
+                    <button class="qty-btn" @click="updateToppingInput(topping.idTopping, -1)"
+                      :disabled="selectedToppings[topping.idTopping]!.qty <= 1">-</button>
                     <span class="qty-num">{{ selectedToppings[topping.idTopping]?.qty || 1 }}</span>
                     <button class="qty-btn" @click="updateToppingInput(topping.idTopping, 1)">+</button>
                   </div>
@@ -133,12 +101,8 @@
             <!-- Note -->
             <div class="config-group">
               <div class="group-header"><span class="group-label">GHI CHÚ</span></div>
-              <textarea 
-                v-model="note" 
-                class="custom-textarea" 
-                placeholder="Thêm yêu cầu khác cho quán..." 
-                rows="2"
-              ></textarea>
+              <textarea v-model="note" class="custom-textarea" placeholder="Thêm yêu cầu khác cho quán..."
+                rows="2"></textarea>
             </div>
           </div>
 
@@ -149,7 +113,7 @@
               <span class="qty-num">{{ drinkQty }}</span>
               <button class="qty-btn" @click="drinkQty++">+</button>
             </div>
-            
+
             <button class="add-to-cart-btn" @click="handleAddToCart">
               Thêm vào giỏ - {{ formatCurrency(estimatedTotal) }}
             </button>
@@ -160,15 +124,8 @@
   </a-modal>
 
   <!-- Hộp thoại yêu cầu đăng nhập -->
-  <a-modal
-    :open="showLoginPrompt"
-    :footer="null"
-    :closable="false"
-    :maskClosable="false"
-    centered
-    :width="340"
-    class="login-prompt-modal"
-  >
+  <a-modal :open="showLoginPrompt" :footer="null" :closable="false" :maskClosable="false" centered :width="340"
+    class="login-prompt-modal">
     <div class="login-prompt-body">
       <div class="login-prompt-icon">🔒</div>
       <div class="login-prompt-title">Bạn cần đăng nhập để mua hàng</div>
@@ -240,7 +197,7 @@ watch(() => props.open, (isOpen) => {
     iceLevel.value = 100;
     drinkQty.value = 1;
     note.value = "";
-    
+
     if (sortedSizes.value.length > 0) {
       selectedSizeId.value = sortedSizes.value[0]!.idSize;
     }
@@ -272,11 +229,23 @@ const updateToppingInput = (toppingId: number, delta: number) => {
   }
 };
 
+// Gia hien thi o header theo size dang chon.
+// Su dung basePrice (da xu ly CTKM) + phuThu do Backend tinh san.
+// Khong dung tyLeTangGia de tu tinh lai gia.
+const giaHienThiTheoSize = computed(() => {
+  if (!props.productData) return 0;
+  const basePrice = props.productData.sanPham.coKhuyenMai
+    ? props.productData.sanPham.giaSauKhuyenMai
+    : props.productData.sanPham.gia;
+  const selectedSize = props.productData.sizes.find(s => s.idSize === selectedSizeId.value);
+  return Number(basePrice ?? 0) + Number(selectedSize?.phuThu ?? 0);
+});
+
 const estimatedTotal = computed(() => {
   if (!props.productData || !selectedSizeId.value) return 0;
 
   const basePrice = props.productData.sanPham.coKhuyenMai ? props.productData.sanPham.giaSauKhuyenMai : props.productData.sanPham.gia;
-  
+
   const selectedSize = props.productData.sizes.find(s => s.idSize === selectedSizeId.value);
   const sizePrice = selectedSize ? selectedSize.phuThu : 0;
 
@@ -379,7 +348,7 @@ const handleAddToCart = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
 }
 
@@ -732,37 +701,46 @@ const handleAddToCart = () => {
 :deep(.ant-modal-content) {
   border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
 }
 
 @media (max-width: 768px) {
   :deep(.ant-modal) {
     width: 96vw !important;
   }
+
   :deep(.ant-modal-body) {
     height: 92vh !important;
   }
+
   .modal-layout {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
   }
+
   .modal-left {
     width: 100%;
     height: 220px;
     flex-shrink: 0;
   }
+
   .modal-right {
     display: flex;
     flex-direction: column;
     height: auto;
   }
-  .modal-header-info, .modal-scroll-area, .modal-footer {
+
+  .modal-header-info,
+  .modal-scroll-area,
+  .modal-footer {
     padding: 20px;
   }
+
   .modal-scroll-area {
     overflow: visible;
   }
+
   .config-row-split {
     flex-direction: column;
   }

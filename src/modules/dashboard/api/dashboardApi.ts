@@ -48,3 +48,21 @@ export interface DashboardData {
 export const getDashboard = () => {
   return api.get<ApiResponse<DashboardData>>("/dashboard");
 };
+
+export interface DashboardKinhDoanhData {
+  soNgay: number;
+  doanhThu: number;
+  doanhThuTienMat: number;
+  doanhThuChuyenKhoan: number;
+  tongDon: number;
+  donOnline: number;
+  donPos: number;
+  bieuDo: DashboardNgayData[];
+  topSanPham: DashboardSanPhamData[];
+}
+
+export const getDashboardKinhDoanh = (days: 1 | 7 | 30) => {
+  return api.get<ApiResponse<DashboardKinhDoanhData>>(
+    `/dashboard/kinh-doanh?days=${days}`
+  );
+};

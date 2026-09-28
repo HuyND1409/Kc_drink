@@ -54,37 +54,6 @@
         </a-descriptions-item>
       </a-descriptions>
 
-      <!-- SAO CHEP CONG THUC (chi hien khi >= 2 size) -->
-      <div
-        v-if="isAdmin && sanPhamSizes.length >= 2"
-        style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 16px;background:#f0f5ff;border:1px solid #d6e4ff;border-radius:8px;"
-      >
-        <span style="font-weight:600;white-space:nowrap;color:#1d39c4;">📋 Sao chép từ size:</span>
-        <a-select
-          v-model:value="copySourceSizeId"
-          style="width:140px;"
-          placeholder="Chọn size nguồn"
-          allow-clear
-        >
-          <a-select-option
-            v-for="s in sanPhamSizes.filter(s => s.idSize !== currentSizeId)"
-            :key="s.idSize"
-            :value="s.idSize"
-          >
-            {{ s.tenSize }}
-          </a-select-option>
-        </a-select>
-        <a-button
-          type="primary"
-          ghost
-          :disabled="!copySourceSizeId"
-          :loading="loadingCopy"
-          @click="handleCopyRecipe"
-        >
-          Sao chép công thức
-        </a-button>
-      </div>
-
       <!-- TABS SIZE -->
       <a-tabs v-model:activeKey="currentSizeId" @change="onTabChange" style="margin-bottom:8px;">
         <a-tab-pane
@@ -93,6 +62,42 @@
           :tab="s.tenSize"
         />
       </a-tabs>
+
+      <!-- TRANG THAI CHE DO NGUYEN LIEU -->
+      <div
+        v-if="currentSizeMeta"
+        style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:8px 12px;background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;"
+      >
+        <!-- Size goc: chi hien tag -->
+        <template v-if="isCurrentBaseSize">
+          <a-tag color="gold" style="font-weight:700;margin:0;">⭐ Size gốc</a-tag>
+          <span style="font-size:12px;color:#8c8c8c;">Công thức size gốc được chỉnh trực tiếp.</span>
+        </template>
+
+        <!-- Size khac: hien control doi mode -->
+        <template v-else>
+          <span style="font-size:13px;color:#595959;white-space:nowrap;">Chế độ nguyên liệu:</span>
+          <a-segmented
+            :value="currentSizeMeta.tuDongTinhNguyenLieu === false ? 'manual' : 'auto'"
+            :options="[
+              { label: '⚙️ Tự động', value: 'auto' },
+              { label: '✏️ Nhập tay', value: 'manual' },
+            ]"
+            :disabled="loadingModeSwitch || !isAdmin"
+            @change="(val: string) => handleChangeModeNguyenLieu(val === 'auto')"
+          />
+          <a-spin v-if="loadingModeSwitch" size="small" />
+          <span
+            v-if="currentSizeMeta.tuDongTinhNguyenLieu !== false"
+            style="font-size:12px;color:#8c8c8c;"
+          >
+            Công thức được tính tự động theo size gốc.
+          </span>
+          <span v-else style="font-size:12px;color:#8c8c8c;">
+            Công thức được nhập tay.
+          </span>
+        </template>
+      </div>
 
       <!-- Loading cong thuc -->
       <div v-if="loadingRecipe" style="text-align:center;padding:40px;">
@@ -107,7 +112,7 @@
             <span style="font-size:15px;font-weight:700;color:#262626;">
               🧪 Nguyên liệu trực tiếp
             </span>
-            <a-button v-if="isAdmin" type="primary" size="small" @click="openAddNL">
+            <a-button v-if="isAdmin && canEditCurrentRecipe" type="primary" size="small" @click="openAddNL">
               + Thêm nguyên liệu
             </a-button>
           </div>
@@ -137,7 +142,7 @@
                 <a-tag>{{ record.nguyenLieu.donViTinh }}</a-tag>
               </template>
               <template v-if="column.key === 'action'">
-                <div v-if="isAdmin" style="display:flex;gap:6px;justify-content:center;">
+                <div v-if="isAdmin && canEditCurrentRecipe" style="display:flex;gap:6px;justify-content:center;">
                   <a-button size="small" type="link" @click="openEditNL(record)">Sửa</a-button>
                   <a-divider type="vertical" style="margin:0;" />
                   <a-popconfirm
@@ -161,7 +166,7 @@
             <span style="font-size:15px;font-weight:700;color:#262626;">
               🧫 Bán thành phẩm
             </span>
-            <a-button v-if="isAdmin" type="primary" size="small" @click="openAddBtp">
+            <a-button v-if="isAdmin && canEditCurrentRecipe" type="primary" size="small" @click="openAddBtp">
               + Thêm bán thành phẩm
             </a-button>
           </div>
@@ -191,7 +196,7 @@
                 <a-tag>{{ record.donViTinh }}</a-tag>
               </template>
               <template v-if="column.key === 'action'">
-                <div v-if="isAdmin" style="display:flex;gap:6px;justify-content:center;">
+                <div v-if="isAdmin && canEditCurrentRecipe" style="display:flex;gap:6px;justify-content:center;">
                   <a-button size="small" type="link" @click="openEditBtp(record)">Sửa</a-button>
                   <a-divider type="vertical" style="margin:0;" />
                   <a-popconfirm
@@ -369,6 +374,7 @@ import {
   createCongThucBtp,
   updateCongThucBtp,
   deleteCongThucBtp,
+  updateSanPhamSizeNguyenLieu,
 } from "../api/sanPhamApi";
 
 // ============================================================
@@ -400,14 +406,29 @@ const currentSizeId = ref<number | null>(null);
 const congThucNL = ref<CongThucNguyenLieu[]>([]);
 const congThucBtp = ref<CongThucBtp[]>([]);
 
-// Copy
-const copySourceSizeId = ref<number | null>(null);
-const loadingCopy = ref(false);
-
 // Meta cua size dang active (lay phuThu tu SanPhamSize, KHONG dung Size.phuThu global)
 const currentSizeMeta = computed<SanPhamSize | undefined>(() =>
   sanPhamSizes.value.find((s) => s.idSize === currentSizeId.value)
 );
+
+// Size goc: co thuTu nho nhat
+const baseSizeMeta = computed<SanPhamSize | undefined>(() => {
+  if (sanPhamSizes.value.length === 0) return undefined;
+  return [...sanPhamSizes.value].sort((a, b) => a.thuTu - b.thuTu)[0];
+});
+
+const isCurrentBaseSize = computed<boolean>(
+  () => !!currentSizeMeta.value && !!baseSizeMeta.value &&
+    currentSizeMeta.value.idSize === baseSizeMeta.value.idSize
+);
+
+// Co the chinh sua cong thuc: la size goc HOAC Manual
+const canEditCurrentRecipe = computed<boolean>(
+  () => isCurrentBaseSize.value || currentSizeMeta.value?.tuDongTinhNguyenLieu === false
+);
+
+// Loading rieng khi doi mode
+const loadingModeSwitch = ref(false);
 
 // ============================================================
 // Columns
@@ -421,7 +442,7 @@ const nlColumns = computed(() => {
     { title: "Định lượng", dataIndex: "soLuongCanDung", width: 120, align: "center" as const },
     { title: "Đơn vị", key: "donViTinh", width: 90, align: "center" as const },
   ];
-  if (isAdmin.value) {
+  if (isAdmin.value && canEditCurrentRecipe.value) {
     base.push({ title: "Thao tác", key: "action", width: 130, align: "center" as const });
   }
   return base;
@@ -433,7 +454,7 @@ const btpColumns = computed(() => {
     { title: "Định lượng", dataIndex: "soLuongCanDung", width: 120, align: "center" as const },
     { title: "Đơn vị", key: "donViTinh", width: 90, align: "center" as const },
   ];
-  if (isAdmin.value) {
+  if (isAdmin.value && canEditCurrentRecipe.value) {
     base.push({ title: "Thao tác", key: "action", width: 130, align: "center" as const });
   }
   return base;
@@ -446,7 +467,6 @@ watch(
   () => props.open,
   async (isOpen) => {
     if (isOpen && props.sanPham) {
-      copySourceSizeId.value = null;
       // Reset cache nguyen lieu / BTP de dam bao fresh data khi mo lai
       allNguyenLieu.value = [];
       allBtp.value = [];
@@ -513,10 +533,62 @@ const loadRecipe = async () => {
 
 const onTabChange = async (key: number) => {
   currentSizeId.value = key;
-  copySourceSizeId.value = null;
   congThucNL.value = [];
   congThucBtp.value = [];
   await loadRecipe();
+};
+
+// ============================================================
+// DOI MODE NGUYEN LIEU (tuDongTinhNguyenLieu)
+// ============================================================
+const handleChangeModeNguyenLieu = async (toAuto: boolean) => {
+  const meta = currentSizeMeta.value;
+  if (!meta || !props.sanPham) return;
+
+  const doUpdate = async () => {
+    loadingModeSwitch.value = true;
+    try {
+      const res = await updateSanPhamSizeNguyenLieu(
+        meta.id,
+        meta.idSanPham,
+        meta.idSize,
+        toAuto
+      );
+      // Cap nhat object SanPhamSize trong danh sach, giu nguyen tab
+      const updatedMeta: SanPhamSize = res.data.data ?? { ...meta, tuDongTinhNguyenLieu: toAuto };
+      const idx = sanPhamSizes.value.findIndex((s) => s.idSize === meta.idSize);
+      if (idx !== -1) {
+        sanPhamSizes.value = [
+          ...sanPhamSizes.value.slice(0, idx),
+          { ...sanPhamSizes.value[idx], tuDongTinhNguyenLieu: updatedMeta.tuDongTinhNguyenLieu },
+          ...sanPhamSizes.value.slice(idx + 1),
+        ];
+      }
+      await loadRecipe();
+      message.success(toAuto ? "Đã chuyển sang Tự động" : "Đã chuyển sang Nhập tay");
+    } catch (err) {
+      const e = err as AxiosError<{ message: string }>;
+      message.error(e.response?.data?.message || "Có lỗi khi đổi chế độ nguyên liệu");
+    } finally {
+      loadingModeSwitch.value = false;
+    }
+  };
+
+  if (toAuto) {
+    // MANUAL -> AUTO: can canh bao
+    Modal.confirm({
+      title: "Chuyển sang Tự động?",
+      content:
+        "Chuyển sang Tự động sẽ tính lại công thức nguyên liệu và bán thành phẩm theo size gốc. Dữ liệu nhập tay hiện tại sẽ bị ghi đè.",
+      okText: "Xác nhận",
+      cancelText: "Hủy",
+      okType: "danger",
+      onOk: doUpdate,
+    });
+  } else {
+    // AUTO -> MANUAL: doi ngay, backend giu nguyen cong thuc
+    await doUpdate();
+  }
 };
 
 // ============================================================
@@ -764,85 +836,6 @@ const deleteBtp = async (id: number) => {
   }
 };
 
-// ============================================================
-// SAO CHEP CONG THUC
-// ============================================================
-const handleCopyRecipe = async () => {
-  if (!props.sanPham || !currentSizeId.value || !copySourceSizeId.value) return;
-
-  // Buoc 1: kiem tra current size da co cong thuc chua
-  const hasCurrentRecipe = congThucNL.value.length > 0 || congThucBtp.value.length > 0;
-  if (hasCurrentRecipe) {
-    message.warning(
-      "Size hiện tại đã có công thức. Hãy xóa hoặc chỉnh sửa công thức trước khi sao chép."
-    );
-    return;
-  }
-
-  // Buoc 2: load cong thuc source
-  loadingCopy.value = true;
-  try {
-    const [srcNlRes, srcBtpRes] = await Promise.all([
-      getCongThucNguyenLieu(props.sanPham.idSanPham, copySourceSizeId.value),
-      getCongThucBtp(props.sanPham.idSanPham, copySourceSizeId.value),
-    ]);
-
-    const srcNL: CongThucNguyenLieu[] =
-      srcNlRes.data.data?.content ?? srcNlRes.data.data ?? [];
-    const srcBtp: CongThucBtp[] = srcBtpRes.data.data ?? [];
-
-    if (srcNL.length === 0 && srcBtp.length === 0) {
-      message.warning("Size nguồn chưa có công thức");
-      return;
-    }
-
-    const sourceName =
-      sanPhamSizes.value.find((s) => s.idSize === copySourceSizeId.value)?.tenSize ?? "";
-    const targetName =
-      sanPhamSizes.value.find((s) => s.idSize === currentSizeId.value)?.tenSize ?? "";
-
-    // Buoc 3: confirm
-    Modal.confirm({
-      title: "Xác nhận sao chép công thức",
-      content: `Sao chép toàn bộ công thức từ size ${sourceName} sang size ${targetName}?`,
-      okText: "Sao chép",
-      cancelText: "Hủy",
-      onOk: async () => {
-        // Buoc 4: POST tung nguyen lieu + BTP sang currentSizeId
-        try {
-          const nlPromises = srcNL.map((row) =>
-            createCongThucNguyenLieu({
-              idSanPham: props.sanPham!.idSanPham,
-              idSize: currentSizeId.value!,
-              idNguyenLieu: row.nguyenLieu.idNguyenLieu,
-              soLuongCanDung: row.soLuongCanDung,
-            })
-          );
-          const btpPromises = srcBtp.map((row) =>
-            createCongThucBtp({
-              idSanPham: props.sanPham!.idSanPham,
-              idSize: currentSizeId.value!,
-              idBanThanhPham: row.idBanThanhPham,
-              soLuongCanDung: row.soLuongCanDung,
-            })
-          );
-          await Promise.all([...nlPromises, ...btpPromises]);
-          message.success("Sao chép công thức thành công");
-          copySourceSizeId.value = null;
-          await loadRecipe();
-        } catch (err) {
-          const e = err as AxiosError<{ message: string }>;
-          message.error(e.response?.data?.message || "Có lỗi khi sao chép công thức");
-        }
-      },
-    });
-  } catch (err) {
-    const e = err as AxiosError<{ message: string }>;
-    message.error(e.response?.data?.message || "Có lỗi xảy ra");
-  } finally {
-    loadingCopy.value = false;
-  }
-};
 </script>
 
 <style scoped>

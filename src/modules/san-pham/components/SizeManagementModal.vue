@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <a-modal
     :open="props.open"
     title="Quản lý Size"
@@ -24,6 +24,16 @@
       bordered
     >
       <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'tyLeTangGia'">
+          <a-tag color="blue" style="font-weight:600;min-width:48px;text-align:center;">
+            {{ Number(record.tyLeTangGia ?? 0) }}%
+          </a-tag>
+        </template>
+        <template v-if="column.key === 'tyLeTangNguyenLieu'">
+          <a-tag color="orange" style="font-weight:600;min-width:48px;text-align:center;">
+            {{ Number(record.tyLeTangNguyenLieu ?? 0) }}%
+          </a-tag>
+        </template>
         <template v-if="column.key === 'action'">
           <a-button
             size="small"
@@ -64,6 +74,34 @@
             placeholder="VD: 4"
           />
         </a-form-item>
+        <a-form-item label="Tỷ lệ tăng giá (%)" required>
+          <a-input-number
+            v-model:value="form.tyLeTangGia"
+            style="width:100%"
+            :min="0"
+            :max="500"
+            :step="1"
+            :precision="2"
+            placeholder="VD: 10"
+          />
+          <div style="color:#888;font-size:12px;margin-top:4px;">
+            Áp dụng cho các sản phẩm đang sử dụng chế độ giá tự động.
+          </div>
+        </a-form-item>
+        <a-form-item label="Tỷ lệ tăng nguyên liệu (%)">
+          <a-input-number
+            v-model:value="form.tyLeTangNguyenLieu"
+            style="width:100%"
+            :min="0"
+            :max="100"
+            :step="1"
+            :precision="2"
+            placeholder="VD: 15"
+          />
+          <div style="color:#888;font-size:12px;margin-top:4px;">
+            Áp dụng cho công thức của các size đang ở chế độ nguyên liệu tự động.
+          </div>
+        </a-form-item>
       </a-form>
     </a-modal>
   </a-modal>
@@ -93,7 +131,9 @@ const sizes = ref<Size[]>([]);
 
 const columns = [
   { title: "Tên size", dataIndex: "tenSize", width: 160 },
-  { title: "Thứ tự", dataIndex: "thuTu", width: 100, align: "center" as const },
+  { title: "Thứ tự", dataIndex: "thuTu", width: 80, align: "center" as const },
+  { title: "Tăng giá", key: "tyLeTangGia", width: 120, align: "center" as const },
+  { title: "Tăng nguyên liệu", key: "tyLeTangNguyenLieu", width: 150, align: "center" as const },
   { title: "Thao tác", key: "action", width: 100, align: "center" as const },
 ];
 
@@ -129,20 +169,27 @@ const formOpen = ref(false);
 const saving = ref(false);
 const editingSize = ref<Size | null>(null);
 
-const form = ref<{ tenSize: string; thuTu: number | null }>({
+const form = ref<{ tenSize: string; thuTu: number | null; tyLeTangGia: number; tyLeTangNguyenLieu: number }>({
   tenSize: "",
   thuTu: null,
+  tyLeTangGia: 0,
+  tyLeTangNguyenLieu: 0,
 });
 
 const openAdd = () => {
   editingSize.value = null;
-  form.value = { tenSize: "", thuTu: null };
+  form.value = { tenSize: "", thuTu: null, tyLeTangGia: 0, tyLeTangNguyenLieu: 0 };
   formOpen.value = true;
 };
 
 const openEdit = (record: Size) => {
   editingSize.value = record;
-  form.value = { tenSize: record.tenSize, thuTu: record.thuTu };
+  form.value = {
+    tenSize: record.tenSize,
+    thuTu: record.thuTu,
+    tyLeTangGia: Number(record.tyLeTangGia ?? 0),
+    tyLeTangNguyenLieu: Number(record.tyLeTangNguyenLieu ?? 0),
+  };
   formOpen.value = true;
 };
 
@@ -161,6 +208,10 @@ const submitForm = async () => {
     message.warning("Thứ tự phải >= 1");
     return;
   }
+  if (form.value.tyLeTangGia == null || form.value.tyLeTangGia < 0) {
+    message.warning("Tỷ lệ tăng giá phải >= 0");
+    return;
+  }
 
   // Chong trung (khi them moi)
   if (!editingSize.value) {
@@ -176,16 +227,24 @@ const submitForm = async () => {
   saving.value = true;
   try {
     if (editingSize.value) {
-      // SUA: giu nguyen phuThu legacy cua size cu
+      // SUA: giu nguyen phuThu legacy cua size cu, them tyLeTangGia va tyLeTangNguyenLieu
       await updateSize(editingSize.value.idSize, {
         tenSize: name,
         phuThu: editingSize.value.phuThu,
+        tyLeTangGia: form.value.tyLeTangGia,
+        tyLeTangNguyenLieu: form.value.tyLeTangNguyenLieu ?? 0,
         thuTu: form.value.thuTu,
       });
       message.success("Cập nhật size thành công");
     } else {
-      // THEM: phuThu = 0 legacy
-      await createSize({ tenSize: name, phuThu: 0, thuTu: form.value.thuTu });
+      // THEM: phuThu = 0 legacy, them tyLeTangGia va tyLeTangNguyenLieu
+      await createSize({
+        tenSize: name,
+        phuThu: 0,
+        tyLeTangGia: form.value.tyLeTangGia,
+        tyLeTangNguyenLieu: form.value.tyLeTangNguyenLieu ?? 0,
+        thuTu: form.value.thuTu,
+      });
       message.success("Thêm size thành công");
     }
     formOpen.value = false;

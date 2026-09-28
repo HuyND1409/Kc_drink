@@ -8,21 +8,10 @@
 
     <div class="toolbar">
       <div class="toolbar-left">
-        <a-input-search
-          v-model:value="keyword"
-          placeholder="Tìm theo tên sản phẩm..."
-          allow-clear
-          style="width:280px"
-          @search="onSearch"
-        />
+        <a-input-search v-model:value="keyword" placeholder="Tìm theo tên sản phẩm..." allow-clear style="width:280px"
+          @search="onSearch" />
 
-        <a-select
-          v-model:value="trangThai"
-          placeholder="Trạng thái"
-          allow-clear
-          style="width:150px"
-          @change="onSearch"
-        >
+        <a-select v-model:value="trangThai" placeholder="Trạng thái" allow-clear style="width:150px" @change="onSearch">
           <a-select-option :value="1">Đang bán</a-select-option>
           <a-select-option :value="0">Ngừng bán</a-select-option>
         </a-select>
@@ -43,19 +32,20 @@
     </div>
 
     <!-- Bang danh sach san pham -->
-    <a-table
-      :columns="columns"
-      :data-source="dsSanPham"
-      :loading="loading"
-      :pagination="false"
-      row-key="idSanPham"
-      bordered
-    >
-      <template #bodyCell="{ column, record }">
+    <a-table :columns="columns" :data-source="dsSanPham" :loading="loading" :pagination="false" row-key="idSanPham"
+      bordered>
+      <template #bodyCell="{ column, record, index }">
+        <!-- STT -->
+        <template v-if="column.key === 'stt'">
+          {{ (currentPage - 1) * pageSize + index + 1 }}
+        </template>
         <!-- Hinh Anh -->
         <template v-if="column.key === 'hinhAnh'">
-          <div style="width: 56px; height: 56px; border-radius: 4px; overflow: hidden; background: #fafafa; display: flex; align-items: center; justify-content: center; margin: 0 auto; border: 1px solid #f0f0f0;">
-            <img v-if="record.hinhAnh" :src="getSanPhamImageUrl(record.hinhAnh)" style="width: 100%; height: 100%; object-fit: cover;" @error="(e: any) => e.target.style.display='none'" />
+          <div
+            style="width: 56px; height: 56px; border-radius: 4px; overflow: hidden; background: #fafafa; display: flex; align-items: center; justify-content: center; margin: 0 auto; border: 1px solid #f0f0f0;">
+            <img v-if="record.hinhAnh" :src="getSanPhamImageUrl(record.hinhAnh)"
+              style="width: 100%; height: 100%; object-fit: cover;"
+              @error="(e: any) => e.target.style.display = 'none'" />
             <span v-else style="font-size: 20px; color: #bfbfbf;">☕</span>
           </div>
         </template>
@@ -69,19 +59,13 @@
         <template v-if="column.key === 'sizes'">
           <a-spin v-if="loadingSizes[record.idSanPham]" size="small" />
           <div v-else style="display:flex;flex-wrap:wrap;gap:4px;">
-            <a-tooltip
-              v-for="s in (sizeMap[record.idSanPham] ?? [])"
-              :key="s.idSize"
-              :title="`+${formatCurrency(s.phuThu)}`"
-            >
+            <a-tooltip v-for="s in (sizeMap[record.idSanPham] ?? [])" :key="s.idSize"
+              :title="`+${formatCurrency(s.phuThu)}`">
               <a-tag color="blue" style="font-weight:600;cursor:default;">
                 {{ s.tenSize }}
               </a-tag>
             </a-tooltip>
-            <span
-              v-if="!(sizeMap[record.idSanPham]?.length)"
-              style="color:#bbb;font-size:13px;"
-            >—</span>
+            <span v-if="!(sizeMap[record.idSanPham]?.length)" style="color:#bbb;font-size:13px;">—</span>
           </div>
         </template>
 
@@ -100,7 +84,8 @@
         <!-- Hanh dong -->
         <template v-if="column.key === 'action'">
           <a-dropdown placement="bottomRight">
-            <a-button size="small" style="width:40px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;margin:0 auto;">
+            <a-button size="small"
+              style="width:40px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;margin:0 auto;">
               <MoreOutlined />
             </a-button>
             <template #overlay>
@@ -125,37 +110,18 @@
 
     <!-- Phan trang -->
     <div style="display:flex;justify-content:flex-end;margin-top:20px;">
-      <a-pagination
-        :current="currentPage"
-        :pageSize="pageSize"
-        :total="total"
-        show-size-changer
-        :show-total="(total: number) => `Tổng ${total} sản phẩm`"
-        @change="onPageChange"
-      />
+      <a-pagination :current="currentPage" :pageSize="pageSize" :total="total" show-size-changer
+        :show-total="(total: number) => `Tổng ${total} sản phẩm`" @change="onPageChange" />
     </div>
 
     <!-- Modal them/sua san pham -->
-    <SanPhamForm
-      :open="openModal"
-      :editData="editing"
-      :editSanPhamSizes="editingSanPhamSizes"
-      @close="handleCloseModal"
-      @save="onSave"
-    />
+    <SanPhamForm :open="openModal" :editData="editing" :editSanPhamSizes="editingSanPhamSizes" @close="handleCloseModal"
+      @save="onSave" />
 
     <!-- Drawer cong thuc -->
-    <CongThucSanPhamDrawer
-      :open="openCongThuc"
-      :sanPham="selectedSanPham"
-      @close="openCongThuc = false"
-    />
+    <CongThucSanPhamDrawer :open="openCongThuc" :sanPham="selectedSanPham" @close="openCongThuc = false" />
     <!-- Modal Quan ly Size -->
-    <SizeManagementModal
-      :open="sizeManagementOpen"
-      @close="sizeManagementOpen = false"
-      @reload="loadData"
-    />
+    <SizeManagementModal :open="sizeManagementOpen" @close="sizeManagementOpen = false" @reload="loadData" />
   </a-card>
 </template>
 
@@ -211,8 +177,8 @@ const pageSize = ref(5);
 const total = ref(0);
 
 const editing = ref<SanPham | undefined>(undefined);
-// Luu SanPhamSize hien tai cua san pham dang sua (co phuThu rieng)
-const editingSanPhamSizes = ref<{ idSize: number; phuThu: number }[]>([]);
+// Luu SanPhamSize hien tai cua san pham dang sua (co phuThu va tuDongTinh rieng)
+const editingSanPhamSizes = ref<{ idSize: number; phuThu: number; tuDongTinh?: boolean }[]>([]);
 const selectedSanPham = ref<SanPham | undefined>(undefined);
 
 // Map idSanPham -> danh sach SanPhamSize
@@ -224,15 +190,22 @@ const loadingSizes = ref<Record<number, boolean>>({});
 // ============================================================
 const columns = [
   {
+    title: "STT",
+    key: "stt",
+    width: 70,
+    align: "center" as const,
+  },
+  {
     title: "#",
     dataIndex: "idSanPham",
     width: 70,
     align: "center" as const,
     customRender: ({ text }: { text: number }) => `SP${String(text).padStart(3, "0")}`,
   },
+
   { title: "Ảnh", key: "hinhAnh", width: 80, align: "center" as const },
   { title: "Tên sản phẩm", dataIndex: "tenSanPham", ellipsis: true },
-  { title: "Giá gốc", key: "gia", width: 140, align: "right" as const },
+  { title: "Giá", key: "gia", width: 140, align: "right" as const },
   { title: "Size", key: "sizes", width: 180 },
   { title: "Mô tả", key: "moTa", ellipsis: true },
   { title: "Trạng thái", key: "trangThai", width: 120, align: "center" as const },
@@ -317,13 +290,14 @@ const onAdd = () => {
 
 const onEdit = async (record: SanPham) => {
   editing.value = { ...record };
-  // Lay SanPhamSize hien tai de lay phuThu rieng
+  // Lay SanPhamSize hien tai de lay phuThu va tuDongTinh rieng
   try {
     const res = await getSanPhamSizeByProduct(record.idSanPham);
     const sizes: SanPhamSize[] = res.data.data ?? [];
     editingSanPhamSizes.value = sizes.map((s) => ({
       idSize: s.idSize,
       phuThu: s.phuThu,
+      tuDongTinh: s.tuDongTinh,
     }));
   } catch {
     editingSanPhamSizes.value = [];
@@ -363,9 +337,9 @@ const handleCreate = async (payload: SanPhamFormPayload) => {
     const res = await createSanPham(product);
     const newId: number = res.data.data?.idSanPham ?? res.data.data?.id;
 
-    // 2. POST /san-pham-size cho tung size (co phuThu rieng)
+    // 2. POST /san-pham-size cho tung size (co phuThu va tuDongTinh rieng)
     await Promise.all(
-      selectedSizes.map((s) => createSanPhamSize(newId, s.idSize, s.phuThu))
+      selectedSizes.map((s) => createSanPhamSize(newId, s.idSize, s.phuThu, s.tuDongTinh))
     );
 
     // 3. Upload hinh anh
@@ -414,15 +388,33 @@ const handleUpdate = async (idSanPham: number, payload: SanPhamFormPayload) => {
     // 3A. SIZE MOI: them
     const toAdd = selectedSizes.filter((s) => !currentSizeIds.includes(s.idSize));
     for (const s of toAdd) {
-      await createSanPhamSize(idSanPham, s.idSize, s.phuThu);
+      await createSanPhamSize(idSanPham, s.idSize, s.phuThu, s.tuDongTinh);
     }
 
-    // 3B. SIZE VAN CON: cap nhat phuThu neu thay doi
+    // 3B. SIZE DA TON TAI: chi update khi doi mode Auto/Manual hoac doi manual phuThu
     for (const s of selectedSizes) {
       const existing = currentSizes.find((c) => c.idSize === s.idSize);
-      if (existing && existing.phuThu !== s.phuThu) {
-        await updateSanPhamSize(existing.id, idSanPham, s.idSize, s.phuThu);
+      if (!existing) continue;
+
+      const oldAuto = existing.tuDongTinh !== false;
+      const newAuto = s.tuDongTinh !== false;
+
+      const modeChanged = oldAuto !== newAuto;
+
+      const manualPriceChanged =
+        !newAuto &&
+        Number(existing.phuThu ?? 0) !== Number(s.phuThu ?? 0);
+
+      if (modeChanged || manualPriceChanged) {
+        await updateSanPhamSize(
+          existing.id,
+          idSanPham,
+          s.idSize,
+          s.phuThu,
+          s.tuDongTinh
+        );
       }
+      // Neu Auto -> Auto va khong doi mode: KHONG update phuThu tu FE
     }
 
     // 3C. SIZE BI BO: kiem tra cong thuc truoc khi xoa

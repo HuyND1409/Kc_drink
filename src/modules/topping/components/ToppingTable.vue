@@ -40,7 +40,7 @@
             <template #icon>
               <DatabaseOutlined />
             </template>
-            Xem kho
+            Xem chi tiết
           </a-button>
 
           <!-- Nút 3 chấm xổ xuống menu (Chỉ ADMIN mới thấy) -->

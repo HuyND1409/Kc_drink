@@ -11,7 +11,7 @@
     <a-menu theme="dark" mode="inline" v-model:selectedKeys="selectedKeys">
 
       <a-menu-item key="1" @click="router.push('/')">
-        Dashboard
+        Thống kê
       </a-menu-item>
 
       <a-menu-item key="pos" @click="router.push('/pos')">
@@ -21,11 +21,7 @@
       <a-menu-item key="pos-online-orders" @click="router.push('/pos/online-orders')">
         <div class="online-order-menu-label">
           <span>🌐 Đơn hàng online</span>
-          <a-badge
-            v-if="pendingOnlineOrders > 0"
-            :count="pendingOnlineOrders"
-            :overflow-count="99"
-          />
+          <a-badge v-if="pendingOnlineOrders > 0" :count="pendingOnlineOrders" :overflow-count="99" />
         </div>
       </a-menu-item>
 
@@ -52,21 +48,21 @@
       </a-menu-item>
       <a-sub-menu key="sub-kho">
         <template #title>
-          Quản lý Nguyên liệu
+          Thành Phần Sản Phẩm
         </template>
         <a-menu-item key="7" @click="router.push('/nguyen-lieu')">
-          Quản lý nguyên liệu
+          Nguyên liệu
         </a-menu-item>
         <a-menu-item key="8" @click="router.push('/topping')">
-          Quản lý topping
+          Topping
         </a-menu-item>
         <a-menu-item key="ban-thanh-pham" @click="router.push('/ban-thanh-pham')">
-          Bán thành phẩm
+          Nguyên liệu nền
         </a-menu-item>
       </a-sub-menu>
-      <a-menu-item key="nhat-ky-he-thong" v-if="isAdmin" @click="router.push('/nhat-ky-he-thong')">
+      <!-- <a-menu-item key="nhat-ky-he-thong" v-if="isAdmin" @click="router.push('/nhat-ky-he-thong')">
         📋 Nhật ký thao tác
-      </a-menu-item>
+      </a-menu-item> -->
     </a-menu>
 
   </a-layout-sider>

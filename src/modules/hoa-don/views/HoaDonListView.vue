@@ -9,44 +9,24 @@
     <!-- BỘ LỌC -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <a-input-search
-          v-model:value="filters.keyword"
-          placeholder="Mã HĐ, tên/SĐT khách, mã GHN..."
-          allow-clear
-          style="width: 250px"
-          @search="onSearch"
-        />
+        <a-input-search v-model:value="filters.keyword" placeholder="Mã HĐ, tên/SĐT khách, mã GHN..." allow-clear
+          style="width: 250px" @search="onSearch" />
 
-        <a-select
-          v-model:value="filters.trangThai"
-          placeholder="Trạng thái HĐ"
-          allow-clear
-          style="width: 150px"
-          @change="onSearch"
-        >
+        <a-select v-model:value="filters.trangThai" placeholder="Trạng thái HĐ" allow-clear style="width: 150px"
+          @change="onSearch">
           <a-select-option value="CHO_THANH_TOAN">Chờ thanh toán</a-select-option>
           <a-select-option value="DA_THANH_TOAN">Đã thanh toán</a-select-option>
           <a-select-option value="DA_HUY">Đã hủy</a-select-option>
         </a-select>
 
-        <a-select
-          v-model:value="filters.loaiHoaDon"
-          placeholder="Loại đơn"
-          allow-clear
-          style="width: 130px"
-          @change="onSearch"
-        >
+        <a-select v-model:value="filters.loaiHoaDon" placeholder="Loại đơn" allow-clear style="width: 130px"
+          @change="onSearch">
           <a-select-option value="OFFLINE">Tại quầy</a-select-option>
           <a-select-option value="ONLINE">Online</a-select-option>
         </a-select>
 
-        <a-select
-          v-model:value="filters.hinhThucThanhToan"
-          placeholder="Phương thức TT"
-          allow-clear
-          style="width: 170px"
-          @change="onSearch"
-        >
+        <a-select v-model:value="filters.hinhThucThanhToan" placeholder="Phương thức TT" allow-clear
+          style="width: 170px" @change="onSearch">
           <a-select-option value="TIEN_MAT">
             Tiền mặt
           </a-select-option>
@@ -55,24 +35,14 @@
           </a-select-option>
         </a-select>
 
-        <a-select
-          v-model:value="coGiaoHangStr"
-          placeholder="Hình thức nhận"
-          allow-clear
-          style="width: 150px"
-          @change="onSearch"
-        >
+        <a-select v-model:value="coGiaoHangStr" placeholder="Hình thức nhận" allow-clear style="width: 150px"
+          @change="onSearch">
           <a-select-option value="false">Nhận tại quầy</a-select-option>
           <a-select-option value="true">Giao hàng</a-select-option>
         </a-select>
 
-        <a-select
-          v-model:value="filters.trangThaiGhn"
-          placeholder="Trạng thái GHN"
-          allow-clear
-          style="width: 160px"
-          @change="onSearch"
-        >
+        <a-select v-model:value="filters.trangThaiGhn" placeholder="Trạng thái GHN" allow-clear style="width: 160px"
+          @change="onSearch">
           <a-select-option value="ready_to_pick">Chờ lấy hàng</a-select-option>
           <a-select-option value="picking">Đang lấy hàng</a-select-option>
           <a-select-option value="transporting">Đang vận chuyển</a-select-option>
@@ -83,12 +53,8 @@
           <a-select-option value="returned">Đã hoàn hàng</a-select-option>
         </a-select>
 
-        <a-range-picker
-          v-model:value="dateRange"
-          format="DD/MM/YYYY"
-          @change="onDateRangeChange"
-          style="width: 240px"
-        />
+        <a-range-picker v-model:value="dateRange" format="DD/MM/YYYY" @change="onDateRangeChange"
+          style="width: 240px" />
 
         <a-tooltip title="Làm mới">
           <a-button shape="circle" @click="resetFilter">↻</a-button>
@@ -97,16 +63,13 @@
     </div>
 
     <!-- BẢNG DANH SÁCH -->
-    <a-table
-      :columns="columns"
-      :data-source="dsHoaDon"
-      :loading="loading"
-      :pagination="pagination"
-      row-key="idHoaDon"
-      @change="handleTableChange"
-      bordered
-    >
-      <template #bodyCell="{ column, record }">
+    <a-table :columns="columns" :data-source="dsHoaDon" :loading="loading" :pagination="pagination" row-key="idHoaDon"
+      @change="handleTableChange" bordered>
+      <template #bodyCell="{ column, record, index }">
+        <!-- STT -->
+        <template v-if="column.key === 'stt'">
+          {{ (pagination.current - 1) * pagination.pageSize + index + 1 }}
+        </template>
         <template v-if="column.key === 'maHoaDon'">
           <span style="font-weight: 600">{{ record.maHoaDon }}</span>
         </template>
@@ -172,12 +135,8 @@
     </a-table>
 
     <!-- DRAWER CHI TIẾT -->
-    <HoaDonDetailDrawer
-      :open="detailOpen"
-      :id-hoa-don="selectedHoaDonId"
-      @close="detailOpen = false"
-      @refreshed="fetchData"
-    />
+    <HoaDonDetailDrawer :open="detailOpen" :id-hoa-don="selectedHoaDonId" @close="detailOpen = false"
+      @refreshed="fetchData" />
   </a-card>
 </template>
 
@@ -217,12 +176,18 @@ const pagination = reactive({
 });
 
 const columns = [
+  {
+    title: "STT",
+    key: "stt",
+    width: 70,
+    align: "center" as const,
+  },
   { title: "Mã HĐ", key: "maHoaDon", width: 120 },
   { title: "Ngày tạo", key: "ngayTao", width: 150 },
   { title: "Khách hàng", key: "khachHang", width: 180 },
   { title: "Loại đơn", key: "loaiHoaDon", width: 100 },
   { title: "Thanh toán", key: "hinhThucThanhToan", width: 130 },
-  { title: "Nhận hàng", key: "hinhThucNhan", width: 150 },
+  { title: "Mã vận đơn", key: "hinhThucNhan", width: 150 },
   { title: "Tổng TT", key: "thanhTien", width: 120, align: "right" as const },
   { title: "Trạng thái", key: "trangThai", width: 130 },
   { title: "TT GHN", key: "trangThaiGhn", width: 130 },
@@ -464,6 +429,7 @@ const translateGhnStatus = (status?: string | null) => {
   flex-wrap: wrap;
   gap: 12px;
 }
+
 .toolbar-left {
   display: flex;
   flex-wrap: wrap;

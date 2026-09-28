@@ -37,96 +37,127 @@
 
         <!-- ==================== TAB 1: KINH DOANH ==================== -->
         <div v-if="activeTab === 'business'">
-          <!-- 1. Kinh doanh hôm nay -->
-          <div class="section-label" style="margin-top: 16px">💰 Kinh doanh hôm nay</div>
-          <div class="business-row">
-            <div class="kpi-card kpi-card--highlight">
-              <span class="kpi-icon">💰</span>
-              <div class="kpi-body">
-                <div class="kpi-label">Doanh thu hôm nay</div>
-                <div class="kpi-value kpi-value--blue">{{ formatCurrency(data.doanhThuHomNay) }}</div>
-              </div>
-            </div>
-            <div class="kpi-card">
-              <span class="kpi-icon">🌐</span>
-              <div class="kpi-body">
-                <div class="kpi-label">Đơn online</div>
-                <div class="kpi-value">{{ data.donOnlineHomNay }}</div>
-              </div>
-            </div>
-            <div class="kpi-card">
-              <span class="kpi-icon">🏪</span>
-              <div class="kpi-body">
-                <div class="kpi-label">Đơn tại quầy</div>
-                <div class="kpi-value">{{ data.donOfflineHomNay }}</div>
-              </div>
-            </div>
-            <div class="kpi-card">
-              <span class="kpi-icon">✅</span>
-              <div class="kpi-body">
-                <div class="kpi-label">Đã thanh toán</div>
-                <div class="kpi-value kpi-value--green">{{ data.donDaThanhToanHomNay }}</div>
-              </div>
-            </div>
-            <div class="kpi-card">
-              <span class="kpi-icon">❌</span>
-              <div class="kpi-body">
-                <div class="kpi-label">Đã hủy</div>
-                <div class="kpi-value" :class="data.donDaHuyHomNay > 0 ? 'kpi-value--red' : ''">{{ data.donDaHuyHomNay }}</div>
-              </div>
-            </div>
+
+          <!-- Bộ lọc thời gian -->
+          <div class="biz-filter-bar" style="margin-top: 16px">
+            <button
+              class="biz-filter-btn"
+              :class="{ 'biz-filter-btn--active': businessDays === 1 }"
+              @click="setBusinessDays(1)"
+            >Hôm nay</button>
+            <button
+              class="biz-filter-btn"
+              :class="{ 'biz-filter-btn--active': businessDays === 7 }"
+              @click="setBusinessDays(7)"
+            >7 ngày</button>
+            <button
+              class="biz-filter-btn"
+              :class="{ 'biz-filter-btn--active': businessDays === 30 }"
+              @click="setBusinessDays(30)"
+            >30 ngày</button>
           </div>
 
-          <!-- 2. Xu hướng 7 ngày -->
-          <div class="section-label" style="margin-top: 20px">📈 Xu hướng 7 ngày gần nhất</div>
+          <!-- 1. KPI kinh doanh (6 card từ API mới) -->
+          <div class="section-label" style="margin-top: 14px">💰 Kinh doanh {{ businessDaysLabel }}</div>
+          <a-spin :spinning="businessLoading">
+            <div class="business-kpi-grid">
+              <div class="kpi-card kpi-card--highlight">
+                <span class="kpi-icon">💰</span>
+                <div class="kpi-body">
+                  <div class="kpi-label">Tổng doanh thu</div>
+                  <div class="kpi-value kpi-value--blue">{{ formatCurrency(businessData.doanhThu) }}</div>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-icon">💵</span>
+                <div class="kpi-body">
+                  <div class="kpi-label">Tiền mặt</div>
+                  <div class="kpi-value kpi-value--green">{{ formatCurrency(businessData.doanhThuTienMat) }}</div>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-icon">🏦</span>
+                <div class="kpi-body">
+                  <div class="kpi-label">Chuyển khoản</div>
+                  <div class="kpi-value kpi-value--purple">{{ formatCurrency(businessData.doanhThuChuyenKhoan) }}</div>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-icon">🧾</span>
+                <div class="kpi-body">
+                  <div class="kpi-label">Tổng đơn</div>
+                  <div class="kpi-value">{{ businessData.tongDon }}</div>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-icon">🌐</span>
+                <div class="kpi-body">
+                  <div class="kpi-label">Online</div>
+                  <div class="kpi-value kpi-value--blue">{{ businessData.donOnline }}</div>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-icon">🏪</span>
+                <div class="kpi-body">
+                  <div class="kpi-label">POS / tại quầy</div>
+                  <div class="kpi-value kpi-value--orange">{{ businessData.donPos }}</div>
+                </div>
+              </div>
+            </div>
+          </a-spin>
+
+          <!-- 2. Biểu đồ doanh thu + đơn hàng (dùng businessData) -->
+          <div class="section-label" style="margin-top: 20px">📈 Xu hướng {{ businessDaysLabel }}</div>
           <div class="trend-layout">
             <!-- Cột trái: biểu đồ doanh thu + đơn hàng -->
             <div class="trend-left">
-              <div v-if="data.bieuDo7Ngay && data.bieuDo7Ngay.length > 0" class="dashboard-chart-card stat-card">
-                <div class="chart-title">Doanh thu 7 ngày</div>
+              <div v-if="businessData.bieuDo && businessData.bieuDo.length > 0" class="dashboard-chart-card stat-card">
+                <div class="chart-title">Doanh thu {{ businessDaysLabel }}</div>
                 <v-chart class="dashboard-chart" :option="revenueChartOption" autoresize />
               </div>
-              <div v-if="data.bieuDo7Ngay && data.bieuDo7Ngay.length > 0" class="dashboard-chart-card stat-card" style="margin-top: 12px">
+              <div v-if="businessData.bieuDo && businessData.bieuDo.length > 0" class="dashboard-chart-card stat-card" style="margin-top: 12px">
                 <div class="chart-title">Đơn hàng Online / Tại quầy</div>
                 <v-chart class="dashboard-chart dashboard-chart--orders" :option="orderChartOption" autoresize />
               </div>
-              <a-empty v-if="!data.bieuDo7Ngay || data.bieuDo7Ngay.length === 0" description="Chưa có dữ liệu 7 ngày" style="margin: 24px 0" />
+              <a-empty v-if="!businessData.bieuDo || businessData.bieuDo.length === 0" description="Chưa có dữ liệu biểu đồ" style="margin: 24px 0" />
             </div>
 
-            <!-- Cột phải: top sản phẩm leaderboard -->
+            <!-- Cột phải: top sản phẩm leaderboard (theo filter businessDays) -->
             <div class="trend-right">
               <div class="dashboard-chart-card stat-card leaderboard-card">
-                <div class="chart-title">🔥 Sản phẩm bán chạy 7 ngày</div>
-                <div v-if="data.topSanPham7Ngay && data.topSanPham7Ngay.length > 0" class="leaderboard">
-                  <div
-                    v-for="(item, idx) in topSanPhamSorted"
-                    :key="item.idSanPham"
-                    class="lb-row"
-                  >
-                    <div class="lb-rank" :class="idx === 0 ? 'lb-rank--gold' : idx === 1 ? 'lb-rank--silver' : idx === 2 ? 'lb-rank--bronze' : ''">
-                      {{ idx + 1 }}
-                    </div>
-                    <div class="lb-info">
-                      <div class="lb-name">{{ item.tenSanPham }}</div>
-                      <div class="lb-bar-wrap">
-                        <div
-                          class="lb-bar"
-                          :style="{ width: Math.round((item.soLuongBan / topSanPhamMax) * 100) + '%' }"
-                        ></div>
+                <div class="chart-title">🔥 Sản phẩm bán chạy {{ businessDaysShortLabel }}</div>
+                <a-spin :spinning="businessLoading">
+                  <div v-if="businessData.topSanPham && businessData.topSanPham.length > 0" class="leaderboard">
+                    <div
+                      v-for="(item, idx) in topSanPhamSorted"
+                      :key="item.idSanPham"
+                      class="lb-row"
+                    >
+                      <div class="lb-rank" :class="idx === 0 ? 'lb-rank--gold' : idx === 1 ? 'lb-rank--silver' : idx === 2 ? 'lb-rank--bronze' : ''">
+                        {{ idx + 1 }}
+                      </div>
+                      <div class="lb-info">
+                        <div class="lb-name">{{ item.tenSanPham }}</div>
+                        <div class="lb-bar-wrap">
+                          <div
+                            class="lb-bar"
+                            :style="{ width: Math.round((item.soLuongBan / topSanPhamMax) * 100) + '%' }"
+                          ></div>
+                        </div>
+                      </div>
+                      <div class="lb-stats">
+                        <span class="lb-qty">{{ item.soLuongBan }} ly</span>
+                        <span class="lb-rev">{{ formatCompactCurrency(item.doanhThu) }}</span>
                       </div>
                     </div>
-                    <div class="lb-stats">
-                      <span class="lb-qty">{{ item.soLuongBan }} ly</span>
-                      <span class="lb-rev">{{ formatCompactCurrency(item.doanhThu) }}</span>
-                    </div>
                   </div>
-                </div>
-                <a-empty v-else description="Chưa có dữ liệu sản phẩm bán chạy" />
+                  <a-empty v-else description="Chưa có sản phẩm bán trong khoảng thời gian này" />
+                </a-spin>
               </div>
             </div>
           </div>
 
-          <!-- 4. Vận hành đơn online -->
+          <!-- 3. Vận hành đơn online -->
           <div class="section-label" style="margin-top: 20px">🚚 Vận hành đơn online</div>
           <div class="kpi-grid kpi-grid--4">
             <div class="kpi-card">
@@ -318,9 +349,9 @@ use([
 ]);
 import axios from "axios";
 import { useAuthStore } from "@/modules/auth/store/authStore";
-import { getDashboard } from "../api/dashboardApi";
+import { getDashboard, getDashboardKinhDoanh } from "../api/dashboardApi";
 import { onDataChanged } from "@/utils/appSync";
-import type { DashboardData } from "../api/dashboardApi";
+import type { DashboardData, DashboardKinhDoanhData } from "../api/dashboardApi";
 
 const auth = useAuthStore();
 const loading = ref(false);
@@ -350,7 +381,7 @@ const data = reactive<DashboardData>({
 });
 
 const topSanPhamSorted = computed(() =>
-  [...data.topSanPham7Ngay].sort((a, b) => b.soLuongBan - a.soLuongBan)
+  [...businessData.topSanPham].sort((a, b) => b.soLuongBan - a.soLuongBan)
 );
 
 const topSanPhamMax = computed(() =>
@@ -365,12 +396,61 @@ const tongDoanhThuNhanVien7Ngay = computed(() =>
   data.thongKeNhanVien7Ngay.reduce((sum, nv) => sum + nv.doanhThu, 0)
 );
 
+// ── Kinh doanh filter state ──
+const businessDays = ref<1 | 7 | 30>(30);
+const businessLoading = ref(false);
+
+const businessData = reactive<DashboardKinhDoanhData>({
+  soNgay: 30,
+  doanhThu: 0,
+  doanhThuTienMat: 0,
+  doanhThuChuyenKhoan: 0,
+  tongDon: 0,
+  donOnline: 0,
+  donPos: 0,
+  bieuDo: [],
+  topSanPham: [],
+});
+
+const businessDaysLabel = computed(() => {
+  if (businessDays.value === 1) return 'Hôm nay';
+  if (businessDays.value === 7) return '7 ngày gần nhất';
+  return '30 ngày gần nhất';
+});
+
+// Label ngắn cho title leaderboard (tránh "Hôm nay gần nhất")
+const businessDaysShortLabel = computed(() => {
+  if (businessDays.value === 1) return 'Hôm nay';
+  if (businessDays.value === 7) return '7 ngày';
+  return '30 ngày';
+});
+
+const loadBusinessData = async () => {
+  if (isUnmounted) return;
+  businessLoading.value = true;
+  try {
+    const res = await getDashboardKinhDoanh(businessDays.value);
+    if (isUnmounted) return;
+    const result = res.data.data;
+    if (result) Object.assign(businessData, result);
+  } catch (err) {
+    console.error('Lỗi tải dữ liệu kinh doanh:', err);
+  } finally {
+    if (!isUnmounted) businessLoading.value = false;
+  }
+};
+
+const setBusinessDays = (days: 1 | 7 | 30) => {
+  businessDays.value = days;
+  loadBusinessData();
+};
+
 const revenueChartOption = computed(() => {
-  const dates = data.bieuDo7Ngay.map((item) => {
+  const dates = businessData.bieuDo.map((item) => {
     const parts = item.ngay.split("-");
     return parts.length === 3 ? `${parts[2]}/${parts[1]}` : item.ngay;
   });
-  const revenues = data.bieuDo7Ngay.map((item) => item.doanhThu);
+  const revenues = businessData.bieuDo.map((item) => item.doanhThu);
 
   return {
     tooltip: {
@@ -415,12 +495,13 @@ const revenueChartOption = computed(() => {
 });
 
 const orderChartOption = computed(() => {
-  const dates = data.bieuDo7Ngay.map((item) => {
+  const dates = businessData.bieuDo.map((item) => {
     const parts = item.ngay.split("-");
     return parts.length === 3 ? `${parts[2]}/${parts[1]}` : item.ngay;
   });
-  const onlineOrders = data.bieuDo7Ngay.map((item) => item.donOnline);
-  const offlineOrders = data.bieuDo7Ngay.map((item) => item.donOffline);
+  const onlineOrders = businessData.bieuDo.map((item) => item.donOnline);
+  // backend trả tên field donOffline trong từng ngày (DashboardNgayData)
+  const offlineOrders = businessData.bieuDo.map((item) => item.donOffline);
 
   return {
     tooltip: {
@@ -563,15 +644,18 @@ const triggerRefresh = () => {
 
 onMounted(() => {
   loadDashboard();
+  loadBusinessData();
 
   unsubSync = onDataChanged((type) => {
     if (['HOA_DON_UPDATED', 'ONLINE_ORDER_UPDATED', 'GHN_UPDATED', 'APP_REVALIDATE'].includes(type)) {
       triggerRefresh();
+      loadBusinessData();
     }
   });
 
   pollingInterval = setInterval(() => {
     triggerRefresh();
+    loadBusinessData();
   }, 15000);
 });
 
@@ -585,6 +669,60 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ── Business filter bar ── */
+.biz-filter-bar {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.biz-filter-btn {
+  padding: 6px 18px;
+  border: none;
+  border-right: 1px solid #d9d9d9;
+  background: #fafafa;
+  color: #595959;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  white-space: nowrap;
+}
+.biz-filter-btn:last-child {
+  border-right: none;
+}
+.biz-filter-btn:hover {
+  background: #f0f7ff;
+  color: #1890ff;
+}
+.biz-filter-btn--active {
+  background: #1890ff;
+  color: #ffffff;
+}
+.biz-filter-btn--active:hover {
+  background: #096dd9;
+  color: #ffffff;
+}
+
+/* ── Business KPI grid (6 card) ── */
+.business-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 1100px) {
+  .business-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .business-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .custom-card {
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
@@ -857,7 +995,6 @@ onUnmounted(() => {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  table-layout: fixed;
 }
 .staff-table thead tr {
   background: #fafafa;
@@ -880,10 +1017,10 @@ onUnmounted(() => {
 }
 .tr-even { background: #ffffff; }
 .tr-odd  { background: #fafafa; }
-.col-rank    { width: 10%;  text-align: center; }
-.col-name    { width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col-orders  { width: 22%; text-align: right; color: #595959; }
-.col-revenue { width: 23%; text-align: right; font-weight: 600; color: #1890ff; }
+.col-rank    { width: 60px; text-align: center; }
+.col-name    { text-align: left; }
+.col-orders  { width: 140px; text-align: right; color: #595959; }
+.col-revenue { width: 160px; text-align: right; font-weight: 600; color: #1890ff; }
 .medal     { font-size: 18px; line-height: 1; }
 .rank-num  {
   display: inline-flex;
